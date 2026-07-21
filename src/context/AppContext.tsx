@@ -33,26 +33,30 @@ interface AppState {
 }
 
 interface AppContextType extends AppState {
+  isHydrated: boolean;
   hireAgent: (agent: Omit<Agent, "id" | "lastHeartbeat" | "budgetSpent">) => void;
+  deleteAgent: (id: string) => void;
   updateAgentStatus: (id: string, status: AgentStatus) => void;
   assignTask: (taskId: string, agentId: string) => void;
   updateTaskStatus: (taskId: string, status: Task["status"]) => void;
-  addGoal: (goal: Omit<Goal, "id" | "progress" | "status">) => void;
-  updateGoalProgress: (id: string, progress: number) => void;
-  addTask: (
-    task: Omit<Task, "id" | "createdAt" | "updatedAt"> & {
+  createTask: (
+    task: Omit<Task, "id" | "createdAt" | "updatedAt" | "status"> & {
       status?: Task["status"];
     }
   ) => void;
+  deleteTask: (id: string) => void;
+  addGoal: (goal: Omit<Goal, "id" | "progress" | "status">) => void;
+  updateGoalProgress: (id: string, progress: number) => void;
+  deleteGoal: (id: string) => void;
+  updateCompany: (updates: Partial<Company>) => void;
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   simulateTick: () => void;
   resetData: () => void;
-  isHydrated: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const STORAGE_KEY = "paperclip-clone-state";
+const STORAGE_KEY = "paperclip-clone-state-v4";
 
 const defaultState: AppState = {
   company: defaultCompany,
@@ -63,35 +67,32 @@ const defaultState: AppState = {
 };
 
 function loadState(): AppState {
-  if (typeof window === "undefined") {
-    return defaultState;
-  }
+  if (typeof window === "undefined") return defaultState;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw) as AppState;
-    }
+    if (raw) return JSON.parse(raw) as AppState;
   } catch {
-    // ignore parse errors
+    /* ignore corrupt data */
   }
   return defaultState;
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Always start with default to avoid hydration mismatch
   const [state, setState] = useState<AppState>(defaultState);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load from localStorage only on client after mount
   useEffect(() => {
     setState(loadState());
     setIsHydrated(true);
   }, []);
 
-  // Persist whenever state changes (after hydration)
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        /* quota */
+      }
     }
   }, [state, isHydrated]);
 
@@ -114,11 +115,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
-        ],
+        ].slice(0, 100),
       }));
     },
     []
   );
+
+  const deleteAgent = useCallback((id: string) => {
+    setState((s) => {
+      const agent = s.agents.find((a) => a.id === id);
+      if (!agent) return s;
+      return {
+        ...s,
+        agents: s.agents.filter((a) => a.id !== id),
+        tasks: s.tasks.map((t) =>
+          t.assigneeId === id ? { ...t, assigneeId: undefined } : t
+        ),
+        activities: [
+          {
+            id: `act-${Date.now()}`,
+            type: "message" as const,
+            message: `Agent ${agent.name} was removed from the team`,
+            timestamp: new Date().toISOString(),
+          },
+          ...s.activities,
+        ].slice(0, 100),
+      };
+    });
+  }, []);
 
   const updateAgentStatus = useCallback((id: string, status: AgentStatus) => {
     setState((s) => ({
@@ -143,6 +167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => {
       const agent = s.agents.find((a) => a.id === agentId);
       const task = s.tasks.find((t) => t.id === taskId);
+      if (!task) return s;
       return {
         ...s,
         tasks: s.tasks.map((t) =>
@@ -150,7 +175,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ? {
                 ...t,
                 assigneeId: agentId,
-                status: "todo",
+                status: t.status === "backlog" ? "todo" : t.status,
                 updatedAt: new Date().toISOString(),
               }
             : t
@@ -158,13 +183,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activities: [
           {
             id: `act-${Date.now()}`,
-            type: "task_started",
+            type: "task_started" as const,
             agentId,
-            message: `${agent?.name || "Agent"} assigned to '${task?.title || "task"}'`,
+            message: `${agent?.name || "Agent"} assigned to '${task.title}'`,
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
-        ],
+        ].slice(0, 100),
       };
     });
   }, []);
@@ -173,7 +198,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (taskId: string, status: Task["status"]) => {
       setState((s) => {
         const task = s.tasks.find((t) => t.id === taskId);
-        const agent = s.agents.find((a) => a.id === task?.assigneeId);
+        if (!task) return s;
+        const agent = s.agents.find((a) => a.id === task.assigneeId);
         return {
           ...s,
           tasks: s.tasks.map((t) =>
@@ -184,21 +210,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
           activities: [
             {
               id: `act-${Date.now()}`,
-              type: status === "done" ? "task_completed" : "task_started",
-              agentId: task?.assigneeId,
-              message: `${agent?.name || "Agent"} moved '${task?.title}' to ${status.replace(
-                "_",
-                " "
-              )}`,
+              type: (status === "done" ? "task_completed" : "task_started") as const,
+              agentId: task.assigneeId,
+              message: `${agent?.name || "System"} moved '${task.title}' to ${status.replace("_", " ")}`,
               timestamp: new Date().toISOString(),
             },
             ...s.activities,
-          ],
+          ].slice(0, 100),
         };
       });
     },
     []
   );
+
+  const createTask = useCallback(
+    (
+      task: Omit<Task, "id" | "createdAt" | "updatedAt" | "status"> & {
+        status?: Task["status"];
+      }
+    ) => {
+      const now = new Date().toISOString();
+      const newTask: Task = {
+        ...task,
+        id: `task-${Date.now()}`,
+        status: task.status || "backlog",
+        createdAt: now,
+        updatedAt: now,
+      };
+      setState((s) => ({
+        ...s,
+        tasks: [newTask, ...s.tasks],
+        activities: [
+          {
+            id: `act-${Date.now()}`,
+            type: "task_started" as const,
+            message: `New task created: ${newTask.title}`,
+            timestamp: now,
+          },
+          ...s.activities,
+        ].slice(0, 100),
+      }));
+    },
+    []
+  );
+
+  const deleteTask = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      tasks: s.tasks.filter((t) => t.id !== id),
+    }));
+  }, []);
 
   const addGoal = useCallback(
     (goal: Omit<Goal, "id" | "progress" | "status">) => {
@@ -214,12 +275,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activities: [
           {
             id: `act-${Date.now()}`,
-            type: "goal_update",
+            type: "goal_update" as const,
             message: `New goal created: ${newGoal.title}`,
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
-        ],
+        ].slice(0, 100),
       }));
     },
     []
@@ -233,46 +294,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? {
               ...g,
               progress: Math.min(100, Math.max(0, progress)),
-              status: progress >= 100 ? "completed" : g.status,
+              status:
+                progress >= 100
+                  ? "completed"
+                  : g.status === "completed" && progress < 100
+                    ? "active"
+                    : g.status,
             }
           : g
       ),
     }));
   }, []);
 
-  const addTask = useCallback(
-    (
-      task: Omit<Task, "id" | "createdAt" | "updatedAt"> & {
-        status?: Task["status"];
-      }
-    ) => {
-      const newTask: Task = {
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-        assigneeId: task.assigneeId,
-        goalId: task.goalId,
-        status: task.status || "backlog",
-        id: `task-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setState((s) => ({
-        ...s,
-        tasks: [...s.tasks, newTask],
-        activities: [
-          {
-            id: `act-${Date.now()}`,
-            type: "task_started",
-            message: `New task created: ${newTask.title}`,
-            timestamp: new Date().toISOString(),
-          },
-          ...s.activities,
-        ],
-      }));
-    },
-    []
-  );
+  const deleteGoal = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      goals: s.goals.filter((g) => g.id !== id),
+      tasks: s.tasks.map((t) =>
+        t.goalId === id ? { ...t, goalId: undefined } : t
+      ),
+    }));
+  }, []);
+
+  const updateCompany = useCallback((updates: Partial<Company>) => {
+    setState((s) => ({
+      ...s,
+      company: { ...s.company, ...updates },
+    }));
+  }, []);
 
   const addActivity = useCallback(
     (activity: Omit<Activity, "id" | "timestamp">) => {
@@ -285,7 +334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
-        ],
+        ].slice(0, 100),
       }));
     },
     []
@@ -293,15 +342,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const simulateTick = useCallback(() => {
     setState((s) => {
-      let agents = [...s.agents];
-      let tasks = [...s.tasks];
-      let goals = [...s.goals];
-      let activities = [...s.activities];
+      let agents = s.agents.map((a) => ({ ...a }));
+      let tasks = s.tasks.map((t) => ({ ...t }));
+      let goals = s.goals.map((g) => ({ ...g }));
+      const activities = [...s.activities];
 
-      // 1. Working agents spend a little budget + heartbeat
       agents = agents.map((a) => {
         if (a.status === "working") {
-          const spend = Math.random() * 4.5 + 0.8;
+          const spend = +(Math.random() * 3.2 + 0.4).toFixed(2);
           return {
             ...a,
             budgetSpent: Math.min(a.budgetMonthly, +(a.budgetSpent + spend).toFixed(2)),
@@ -311,12 +359,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return a;
       });
 
-      // 2. Occasional status flip
-      if (Math.random() > 0.45) {
+      if (agents.length > 0 && Math.random() > 0.48) {
         const idx = Math.floor(Math.random() * agents.length);
-        const statuses: AgentStatus[] = ["idle", "working", "paused"];
-        const newStatus = statuses[Math.floor(Math.random() * statuses.length)];
+        const options: AgentStatus[] = ["idle", "working", "paused"];
+        const newStatus = options[Math.floor(Math.random() * options.length)];
         if (agents[idx].status !== newStatus) {
+          const prev = agents[idx].status;
           agents[idx] = {
             ...agents[idx],
             status: newStatus,
@@ -330,17 +378,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             id: `act-${Date.now()}-st`,
             type: "heartbeat",
             agentId: agents[idx].id,
-            message: `${agents[idx].name} is now ${newStatus}`,
+            message: `${agents[idx].name} changed from ${prev} → ${newStatus}`,
             timestamp: new Date().toISOString(),
           });
         }
       }
 
-      // 3. Advance a random non-done task
       const movable = tasks.filter(
-        (t) => t.status === "todo" || t.status === "in_progress" || t.status === "review"
+        (t) =>
+          t.status === "todo" ||
+          t.status === "in_progress" ||
+          t.status === "review"
       );
-      if (movable.length > 0 && Math.random() > 0.35) {
+      if (movable.length > 0 && Math.random() > 0.38) {
         const t = movable[Math.floor(Math.random() * movable.length)];
         const nextMap: Partial<Record<Task["status"], Task["status"]>> = {
           todo: "in_progress",
@@ -359,18 +409,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             id: `act-${Date.now()}-tk`,
             type: next === "done" ? "task_completed" : "task_started",
             agentId: t.assigneeId,
-            message: `${agent?.name || "Agent"} moved '${t.title}' to ${next.replace("_", " ")}`,
+            message: `${agent?.name || "System"} moved '${t.title}' to ${next.replace("_", " ")}`,
             timestamp: new Date().toISOString(),
           });
         }
       }
 
-      // 4. Nudge a random active goal
-      if (Math.random() > 0.55) {
-        const activeGoals = goals.filter((g) => g.status === "active" && g.progress < 100);
-        if (activeGoals.length > 0) {
-          const g = activeGoals[Math.floor(Math.random() * activeGoals.length)];
-          const inc = Math.floor(Math.random() * 4) + 1;
+      if (Math.random() > 0.52) {
+        const active = goals.filter(
+          (g) => g.status === "active" && g.progress < 100
+        );
+        if (active.length > 0) {
+          const g = active[Math.floor(Math.random() * active.length)];
+          const inc = Math.floor(Math.random() * 5) + 1;
           const newProg = Math.min(100, g.progress + inc);
           goals = goals.map((gg) =>
             gg.id === g.id
@@ -390,10 +441,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 5. Budget alerts for agents > 80%
       agents.forEach((a) => {
         const pct = a.budgetMonthly > 0 ? a.budgetSpent / a.budgetMonthly : 0;
-        if (pct > 0.8 && Math.random() > 0.65) {
+        if (pct >= 0.85 && Math.random() > 0.72) {
           activities.unshift({
             id: `act-${Date.now()}-bd-${a.id}`,
             type: "budget_alert",
@@ -409,7 +459,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         agents,
         tasks,
         goals,
-        activities: activities.slice(0, 50),
+        activities: activities.slice(0, 100),
       };
     });
   }, []);
@@ -417,7 +467,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetData = useCallback(() => {
     setState(defaultState);
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+      } catch {
+        /* ignore */
+      }
     }
   }, []);
 
@@ -425,17 +479,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         ...state,
+        isHydrated,
         hireAgent,
+        deleteAgent,
         updateAgentStatus,
         assignTask,
         updateTaskStatus,
+        createTask,
+        deleteTask,
         addGoal,
         updateGoalProgress,
-        addTask,
+        deleteGoal,
+        updateCompany,
         addActivity,
         simulateTick,
         resetData,
-        isHydrated,
       }}
     >
       {children}
