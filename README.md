@@ -12,9 +12,11 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
 - **Dashboard** — Mission overview, live stats, activity feed
 - **Agents** — Hire new agents, set budgets, pause/resume, monitor heartbeats
 - **Goals** — Company mission alignment, progress tracking
-- **Tasks** — Kanban board with priorities, assignment, status workflow
+- **Tasks** — Full Kanban board with create, priorities, assignment, status workflow
 - **Org Chart** — Hierarchical view of your AI team with reporting lines
 - **Persistent state** — localStorage so your company survives refreshes (hydration-safe)
+- **Mobile responsive** — Slide-over sidebar with hamburger menu on small screens
+- **Reset Demo Data** — One-click restore to original seed data
 - **Dark, modern UI** — Built with Tailwind CSS v4
 - **Zero backend required** — Pure frontend demo, perfect for learning or extending
 
@@ -67,18 +69,22 @@ src/
 │   │   ├── page.tsx          # Overview
 │   │   ├── agents/page.tsx   # Agent management
 │   │   ├── goals/page.tsx    # Goals
-│   │   ├── tasks/page.tsx    # Kanban
+│   │   ├── tasks/page.tsx    # Kanban + create task
 │   │   └── org/page.tsx      # Org chart
 │   ├── layout.tsx
 │   └── page.tsx              # Redirects to /dashboard
-├── components/               # UI components
-├── context/AppContext.tsx    # Global state + actions (hydration-safe)
+├── components/               # UI components (responsive Sidebar, Header)
+├── context/
+│   ├── AppContext.tsx        # Global state + actions (hydration-safe)
+│   └── MenuContext.tsx       # Mobile sidebar toggle
 └── lib/                      # Types & seed data
 ```
 
 ## Recent Improvements
 
-- Added MIT License
+- **Create Tasks** — Full modal to add new tasks with priority, assignee, and linked goal
+- **Mobile responsive** — Hamburger menu + slide-over sidebar that works great on phones
+- **Reset Demo Data** — Button in the sidebar to restore the original seed company
 - Fixed potential React hydration mismatch when loading state from localStorage
 - Exposed `isHydrated` flag for safer client-side rendering of dynamic content
 
