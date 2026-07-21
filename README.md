@@ -9,14 +9,16 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
 
 ## Features
 
-- **Dashboard** — Mission overview, live stats, activity feed
-- **Agents** — Hire new agents, set budgets, pause/resume, monitor heartbeats
-- **Goals** — Company mission alignment, progress tracking
-- **Tasks** — Kanban board with priorities, assignment, status workflow + **create new tasks**
-- **Org Chart** — Hierarchical view of your AI team with reporting lines
-- **Live Simulation** — Click **Simulate** in the header to advance the world: agents work & spend budget, tasks move forward, goals progress, and new activity appears
-- **Persistent state** — localStorage so your company survives refreshes
-- **Dark, modern UI** — Built with Tailwind CSS v4
+- **Dashboard** — Mission overview, live stats, activity feed + **Simulate Tick** (live agent activity)
+- **Agents** — Hire, search/filter, pause/resume, budgets, skills, delete
+- **Goals** — Create, track progress, delete
+- **Tasks** — Full Kanban with create, assign, priority, delete, status workflow
+- **Org Chart** — Hierarchical view with reporting lines and live status
+- **Live simulation** — Simulate Tick advances budgets, tasks, goals and heartbeats
+- **Persistent state** — localStorage (survives refresh)
+- **Mobile responsive** — Hamburger sidebar, adaptive layout
+- **Accessible** — Focus rings, ARIA labels, keyboard friendly
+- **Dark, modern UI** — Tailwind CSS v4
 
 ## Quick Start
 
@@ -64,14 +66,14 @@ No environment variables required. Pure frontend + localStorage.
 src/
 ├── app/
 │   ├── dashboard/
-│   │   ├── page.tsx          # Overview
-│   │   ├── agents/page.tsx   # Agent management
+│   │   ├── page.tsx          # Overview + Simulate Tick
+│   │   ├── agents/page.tsx   # Agent management + search
 │   │   ├── goals/page.tsx    # Goals
-│   │   ├── tasks/page.tsx    # Kanban + create tasks
+│   │   ├── tasks/page.tsx    # Kanban
 │   │   └── org/page.tsx      # Org chart
 │   ├── layout.tsx
 │   └── page.tsx              # Redirects to /dashboard
-├── components/               # UI components (Header has Simulate button)
+├── components/               # UI components
 ├── context/AppContext.tsx    # Global state + actions + simulateTick
 └── lib/                      # Types & seed data
 ```
