@@ -5,11 +5,19 @@ import Header from "@/components/Header";
 import { useApp } from "@/context/AppContext";
 
 export default function GoalsPage() {
-  const { goals, agents, addGoal, updateGoalProgress } = useApp();
+  const { goals, agents, addGoal, updateGoalProgress, isHydrated } = useApp();
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [ownerId, setOwnerId] = useState(agents[0]?.id || "");
+
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-12 text-muted">
+        Loading goals…
+      </div>
+    );
+  }
 
   const handleAdd = () => {
     if (!title.trim()) return;
