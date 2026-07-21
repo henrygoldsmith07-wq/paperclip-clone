@@ -1,21 +1,25 @@
 # 📎 Paperclip Clone
 
-A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paperclip](https://paperclip.ing) — the open-source app for managing teams of AI agents at work.
+A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paperclip](https://paperclip.ing).
 
 > **If OpenClaw is an employee, Paperclip is the company.**  
-> This clone gives you the control plane: org charts, goals, budgets, tasks, and live activity.
+> This clone gives you the control plane: org charts, goals, budgets, tasks, live activity, and simulation.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8) ![Vercel](https://img.shields.io/badge/Deploy-Vercel-black)
 
 ## Features
 
-- **Dashboard** — Mission overview, live stats, activity feed + **Simulate Tick** (live agent activity)
+- **Dashboard** — Mission overview, live stats, activity feed + **Simulate Tick**
 - **Agents** — Hire, search/filter, pause/resume, budgets, skills, delete
 - **Goals** — Create, track progress, delete
-- **Tasks** — Full Kanban with create, assign, priority, delete, status workflow
-- **Org Chart** — Hierarchical view with reporting lines and live status
-- **Live simulation** — Simulate Tick advances budgets, tasks, goals and heartbeats
-- **Persistent state** — localStorage (survives refresh)
+- **Tasks** — Full Kanban (create, assign, priority, delete, status workflow)
+- **Org Chart** — Hierarchical view with live status indicators + budget tooltips
+- **Settings** — Edit company name & mission, **auto-simulate toggle**, reset demo
+- **Keyboard shortcuts**
+  - `S` → Simulate Tick
+  - `G` then `D / A / T / O / G / S` → navigate pages
+- **Live simulation** — Manual or automatic (every 4s) agent activity
+- **Persistent state** — localStorage survives refresh
 - **Mobile responsive** — Hamburger sidebar, adaptive layout
 - **Accessible** — Focus rings, ARIA labels, keyboard friendly
 - **Dark, modern UI** — Tailwind CSS v4
@@ -23,10 +27,7 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
 ## Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
 
@@ -34,68 +35,46 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Deploy to Vercel
 
-This project is **ready for one-click Vercel deployment**.
+This project is ready for one-click Vercel deployment.
 
-### Option 1: Vercel CLI
+1. Go to [vercel.com/new](https://vercel.com/new)
+2. Import `henrygoldsmith07-wq/paperclip-clone`
+3. Click **Deploy**
 
-```bash
-npm i -g vercel
-vercel
-```
+No environment variables required.
 
-### Option 2: GitHub + Vercel Dashboard
+## Keyboard Shortcuts
 
-1. This repo is already on GitHub
-2. Go to [vercel.com/new](https://vercel.com/new)
-3. Import the repository `henrygoldsmith07-wq/paperclip-clone`
-4. Click **Deploy**
-
-No environment variables required. Pure frontend + localStorage.
-
-## Tech Stack
-
-- **Next.js 16** (App Router)
-- **React 19**
-- **TypeScript**
-- **Tailwind CSS v4**
-- **localStorage** for demo persistence
+| Shortcut     | Action              |
+|--------------|---------------------|
+| `S`          | Simulate Tick       |
+| `G` then `D` | Dashboard           |
+| `G` then `A` | Agents              |
+| `G` then `T` | Tasks               |
+| `G` then `O` | Org Chart           |
+| `G` then `G` | Goals               |
+| `G` then `S` | Settings            |
 
 ## Project Structure
 
 ```
 src/
-├── app/
-│   ├── dashboard/
-│   │   ├── page.tsx          # Overview + Simulate Tick
-│   │   ├── agents/page.tsx   # Agent management + search
-│   │   ├── goals/page.tsx    # Goals
-│   │   ├── tasks/page.tsx    # Kanban
-│   │   └── org/page.tsx      # Org chart
-│   ├── layout.tsx
-│   └── page.tsx              # Redirects to /dashboard
-├── components/               # UI components
-├── context/AppContext.tsx    # Global state + actions + simulateTick
-└── lib/                      # Types & seed data
+├── app/dashboard/
+│   ├── page.tsx          # Overview + Simulate Tick
+│   ├── agents/           # Agent management
+│   ├── goals/            # Goals
+│   ├── tasks/            # Kanban board
+│   ├── org/              # Org chart
+│   └── settings/         # Company settings + auto-simulate
+├── components/           # UI components + KeyboardShortcuts
+├── context/AppContext.tsx
+└── lib/                  # Types & seed data
 ```
-
-## How it differs from the real Paperclip
-
-This is a **frontend clone / demo** focused on the UX and concepts:
-
-| Feature              | Paperclip (real)          | This clone          |
-|----------------------|---------------------------|---------------------|
-| Agent runtimes       | Real (Claude, Codex, etc) | Mock / simulated    |
-| Database             | Postgres                  | localStorage        |
-| Heartbeats           | Real scheduled            | Simulated timestamps|
-| Multi-company        | Yes                       | Single company      |
-| Auth & governance    | Full                      | Simplified          |
-
-Perfect for learning the product model, demos, or as a starting point to build your own agent control plane.
 
 ## License
 
-MIT — do whatever you want.
+MIT
 
 ---
 
-Built with ❤️ as a clone of [paperclipai/paperclip](https://github.com/paperclipai/paperclip)
+Built as a clone of [paperclipai/paperclip](https://github.com/paperclipai/paperclip)
