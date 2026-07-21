@@ -15,7 +15,6 @@ import {
   Activity,
   Company,
   AgentStatus,
-  AgentRole,
 } from "@/lib/types";
 import {
   company as defaultCompany,
@@ -42,21 +41,24 @@ interface AppContextType extends AppState {
   updateGoalProgress: (id: string, progress: number) => void;
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   resetData: () => void;
+  isHydrated: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 const STORAGE_KEY = "paperclip-clone-state";
 
+const defaultState: AppState = {
+  company: defaultCompany,
+  agents: initialAgents,
+  goals: initialGoals,
+  tasks: initialTasks,
+  activities: initialActivities,
+};
+
 function loadState(): AppState {
   if (typeof window === "undefined") {
-    return {
-      company: defaultCompany,
-      agents: initialAgents,
-      goals: initialGoals,
-      tasks: initialTasks,
-      activities: initialActivities,
-    };
+    return defaultState;
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -64,23 +66,28 @@ function loadState(): AppState {
       return JSON.parse(raw) as AppState;
     }
   } catch {
-    // ignore
+    // ignore parse errors
   }
-  return {
-    company: defaultCompany,
-    agents: initialAgents,
-    goals: initialGoals,
-    tasks: initialTasks,
-    activities: initialActivities,
-  };
+  return defaultState;
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(loadState);
+  // Always start with default to avoid hydration mismatch
+  const [state, setState] = useState<AppState>(defaultState);
+  const [isHydrated, setIsHydrated] = useState(false);
 
+  // Load from localStorage only on client after mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    setState(loadState());
+    setIsHydrated(true);
+  }, []);
+
+  // Persist whenever state changes (after hydration)
+  useEffect(() => {
+    if (isHydrated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+  }, [state, isHydrated]);
 
   const hireAgent = useCallback(
     (agent: Omit<Agent, "id" | "lastHeartbeat" | "budgetSpent">) => {
@@ -242,15 +249,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const resetData = useCallback(() => {
-    const fresh = {
-      company: defaultCompany,
-      agents: initialAgents,
-      goals: initialGoals,
-      tasks: initialTasks,
-      activities: initialActivities,
-    };
-    setState(fresh);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+    setState(defaultState);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+    }
   }, []);
 
   return (
@@ -265,6 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateGoalProgress,
         addActivity,
         resetData,
+        isHydrated,
       }}
     >
       {children}
