@@ -22,26 +22,27 @@ function timeAgo(iso: string) {
 }
 
 export default function AgentCard({ agent }: { agent: Agent }) {
-  const { updateAgentStatus } = useApp();
+  const { updateAgentStatus, deleteAgent } = useApp();
   const style = statusStyles[agent.status];
-  const budgetPct = Math.round(
-    (agent.budgetSpent / agent.budgetMonthly) * 100
+  const budgetPct = Math.min(
+    100,
+    Math.round((agent.budgetSpent / (agent.budgetMonthly || 1)) * 100)
   );
 
   return (
     <div className="group rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-800 text-xl">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xl">
             {agent.avatar}
           </div>
-          <div>
-            <h3 className="font-semibold text-foreground">{agent.name}</h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-foreground truncate">{agent.name}</h3>
             <p className="text-xs text-muted">{agent.role}</p>
           </div>
         </div>
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${style.bg} ${style.text}`}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${style.bg} ${style.text}`}
         >
           {agent.status === "working" && (
             <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-current" />
@@ -57,35 +58,54 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         </p>
       )}
 
-      {/* Budget bar */}
+      {agent.skills && agent.skills.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {agent.skills.slice(0, 4).map((skill) => (
+            <span
+              key={skill}
+              className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-muted"
+            >
+              {skill}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-4">
         <div className="mb-1 flex justify-between text-[11px]">
           <span className="text-muted">Budget</span>
-          <span className="text-foreground">
+          <span
+            className={
+              budgetPct > 85
+                ? "text-danger font-medium"
+                : budgetPct > 60
+                  ? "text-warning"
+                  : "text-foreground"
+            }
+          >
             ${agent.budgetSpent.toFixed(0)} / ${agent.budgetMonthly}
           </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
           <div
-            className={`h-full rounded-full transition-all ${
+            className={`h-full rounded-full transition-all duration-500 ${
               budgetPct > 85
                 ? "bg-danger"
                 : budgetPct > 60
                   ? "bg-warning"
                   : "bg-accent"
             }`}
-            style={{ width: `${Math.min(100, budgetPct)}%` }}
+            style={{ width: `${budgetPct}%` }}
           />
         </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between text-[11px] text-muted">
-        <span>Model: {agent.model}</span>
-        <span>♥ {timeAgo(agent.lastHeartbeat)}</span>
+        <span className="truncate max-w-[55%]">Model: {agent.model}</span>
+        <span title={agent.lastHeartbeat}>♥ {timeAgo(agent.lastHeartbeat)}</span>
       </div>
 
-      {/* Quick actions */}
-      <div className="mt-4 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="mt-4 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
         {agent.status !== "working" && (
           <button
             onClick={() => updateAgentStatus(agent.id, "working")}
@@ -108,6 +128,20 @@ export default function AgentCard({ agent }: { agent: Agent }) {
             className="flex-1 rounded-md bg-zinc-700/50 px-2 py-1.5 text-[11px] font-medium text-muted hover:bg-zinc-700"
           >
             Idle
+          </button>
+        )}
+        {agent.role !== "CEO" && (
+          <button
+            onClick={() => {
+              if (confirm(`Remove ${agent.name} from the team?`)) {
+                deleteAgent(agent.id);
+              }
+            }}
+            className="rounded-md bg-danger/15 px-2.5 py-1.5 text-[11px] font-medium text-danger hover:bg-danger/25"
+            title="Remove agent"
+            aria-label={`Remove ${agent.name}`}
+          >
+            ✕
           </button>
         )}
       </div>
