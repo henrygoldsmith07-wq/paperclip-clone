@@ -1,43 +1,42 @@
 "use client";
 
 import { useApp } from "@/context/AppContext";
+import { useMenu } from "@/context/MenuContext";
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
-  onMenuClick?: () => void;
 }
 
-export default function Header({ title, subtitle, onMenuClick }: HeaderProps) {
+export default function Header({ title, subtitle }: HeaderProps) {
   const { company, agents } = useApp();
+  const { open } = useMenu();
   const activeCount = agents.filter((a) => a.status === "working").length;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
       <div className="flex items-center gap-3">
         {/* Mobile menu button */}
-        {onMenuClick && (
-          <button
-            onClick={onMenuClick}
-            className="rounded-lg p-2 text-muted hover:bg-card-hover hover:text-foreground lg:hidden"
-            aria-label="Open menu"
+        <button
+          onClick={open}
+          className="rounded-lg p-2 text-muted hover:bg-card-hover hover:text-foreground lg:hidden"
+          aria-label="Open menu"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </button>
-        )}
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-foreground">
             {title}
