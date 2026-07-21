@@ -21,7 +21,7 @@ const priorityColors: Record<Task["priority"], string> = {
 };
 
 export default function TasksPage() {
-  const { tasks, agents, goals, updateTaskStatus, assignTask, addTask } = useApp();
+  const { tasks, agents, goals, updateTaskStatus, assignTask, createTask, isHydrated } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -29,10 +29,18 @@ export default function TasksPage() {
   const [assigneeId, setAssigneeId] = useState("");
   const [goalId, setGoalId] = useState("");
 
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-12 text-muted">
+        Loading tasks…
+      </div>
+    );
+  }
+
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
-    addTask({
+    createTask({
       title: title.trim(),
       description: description.trim() || "No description",
       priority,
