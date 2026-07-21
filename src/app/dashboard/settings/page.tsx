@@ -1,19 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Header from "@/components/Header";
 import { useApp } from "@/context/AppContext";
 
 export default function SettingsPage() {
-  const { company, updateCompany, resetData, isHydrated } = useApp();
+  const { company, updateCompany, resetData, simulateTick, isHydrated } =
+    useApp();
   const [name, setName] = useState(company.name);
   const [mission, setMission] = useState(company.mission);
   const [saved, setSaved] = useState(false);
+  const [autoSimulate, setAutoSimulate] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setName(company.name);
     setMission(company.mission);
   }, [company.name, company.mission]);
+
+  useEffect(() => {
+    if (autoSimulate) {
+      intervalRef.current = setInterval(() => {
+        simulateTick();
+      }, 4000);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [autoSimulate, simulateTick]);
 
   if (!isHydrated) {
     return (
@@ -89,11 +106,37 @@ export default function SettingsPage() {
 
         <section className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-sm font-semibold text-foreground mb-2">
+            Live Simulation
+          </h2>
+          <p className="text-xs text-muted mb-4">
+            Automatically advance agent activity every 4 seconds. Great for demos.
+          </p>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={autoSimulate}
+                onChange={(e) => setAutoSimulate(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-10 h-5 bg-zinc-700 rounded-full peer-checked:bg-accent transition-colors" />
+              <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+            </div>
+            <span className="text-sm">
+              {autoSimulate ? "Auto-simulate ON" : "Auto-simulate OFF"}
+            </span>
+          </label>
+          <p className="mt-3 text-[11px] text-muted">
+            You can also press <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">S</kbd> anytime to trigger one tick.
+          </p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold text-foreground mb-2">
             Demo Controls
           </h2>
           <p className="text-xs text-muted mb-4">
-            Reset all agents, tasks, goals and activity back to the original
-            seed data.
+            Reset all agents, tasks, goals and activity back to the original seed data.
           </p>
           <button
             onClick={() => {
@@ -102,6 +145,7 @@ export default function SettingsPage() {
                   "Reset the entire company to the original demo state? This cannot be undone."
                 )
               ) {
+                setAutoSimulate(false);
                 resetData();
               }
             }}
@@ -131,6 +175,14 @@ export default function SettingsPage() {
             <div className="flex justify-between">
               <span className="text-muted">Go to Tasks</span>
               <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then T</kbd>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Go to Org Chart</span>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then O</kbd>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Go to Goals</span>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then G</kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Settings</span>
