@@ -37,6 +37,7 @@ interface AppContextType extends AppState {
   updateAgentStatus: (id: string, status: AgentStatus) => void;
   assignTask: (taskId: string, agentId: string) => void;
   updateTaskStatus: (taskId: string, status: Task["status"]) => void;
+  addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => void;
   addGoal: (goal: Omit<Goal, "id" | "progress" | "status">) => void;
   updateGoalProgress: (id: string, progress: number) => void;
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
@@ -191,6 +192,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const addTask = useCallback(
+    (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
+      const now = new Date().toISOString();
+      const newTask: Task = {
+        ...task,
+        id: `task-${Date.now()}`,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setState((s) => ({
+        ...s,
+        tasks: [...s.tasks, newTask],
+        activities: [
+          {
+            id: `act-${Date.now()}`,
+            type: "task_started",
+            agentId: task.assigneeId,
+            message: `New task created: '${newTask.title}'`,
+            timestamp: now,
+          },
+          ...s.activities,
+        ],
+      }));
+    },
+    []
+  );
+
   const addGoal = useCallback(
     (goal: Omit<Goal, "id" | "progress" | "status">) => {
       const newGoal: Goal = {
@@ -263,6 +291,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateAgentStatus,
         assignTask,
         updateTaskStatus,
+        addTask,
         addGoal,
         updateGoalProgress,
         addActivity,
