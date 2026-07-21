@@ -22,12 +22,20 @@ const ROLES: AgentRole[] = [
 const AVATARS = ["⚡", "🛡️", "📣", "💰", "⚙️", "🎨", "💼", "🎧", "🔬", "✍️", "🚀", "🧠"];
 
 export default function AgentsPage() {
-  const { agents, hireAgent } = useApp();
+  const { agents, hireAgent, isHydrated } = useApp();
   const [showHire, setShowHire] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState<AgentRole>("Engineer");
   const [budget, setBudget] = useState(150);
   const [model, setModel] = useState("claude-sonnet-4");
+
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-12 text-muted">
+        Loading agents…
+      </div>
+    );
+  }
 
   const handleHire = () => {
     if (!name.trim()) return;
