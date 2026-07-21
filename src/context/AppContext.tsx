@@ -39,7 +39,13 @@ interface AppContextType extends AppState {
   updateTaskStatus: (taskId: string, status: Task["status"]) => void;
   addGoal: (goal: Omit<Goal, "id" | "progress" | "status">) => void;
   updateGoalProgress: (id: string, progress: number) => void;
+  addTask: (
+    task: Omit<Task, "id" | "createdAt" | "updatedAt"> & {
+      status?: Task["status"];
+    }
+  ) => void;
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
+  simulateTick: () => void;
   resetData: () => void;
   isHydrated: boolean;
 }
@@ -180,7 +186,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               id: `act-${Date.now()}`,
               type: status === "done" ? "task_completed" : "task_started",
               agentId: task?.assigneeId,
-              message: `${agent?.name || "Agent"} moved '${task?.title}' to ${status.replace("_", " ")}`,
+              message: `${agent?.name || "Agent"} moved '${task?.title}' to ${status.replace(
+                "_",
+                " "
+              )}`,
               timestamp: new Date().toISOString(),
             },
             ...s.activities,
@@ -231,6 +240,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const addTask = useCallback(
+    (
+      task: Omit<Task, "id" | "createdAt" | "updatedAt"> & {
+        status?: Task["status"];
+      }
+    ) => {
+      const newTask: Task = {
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        assigneeId: task.assigneeId,
+        goalId: task.goalId,
+        status: task.status || "backlog",
+        id: `task-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setState((s) => ({
+        ...s,
+        tasks: [...s.tasks, newTask],
+        activities: [
+          {
+            id: `act-${Date.now()}`,
+            type: "task_started",
+            message: `New task created: ${newTask.title}`,
+            timestamp: new Date().toISOString(),
+          },
+          ...s.activities,
+        ],
+      }));
+    },
+    []
+  );
+
   const addActivity = useCallback(
     (activity: Omit<Activity, "id" | "timestamp">) => {
       setState((s) => ({
@@ -247,6 +290,129 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  const simulateTick = useCallback(() => {
+    setState((s) => {
+      let agents = [...s.agents];
+      let tasks = [...s.tasks];
+      let goals = [...s.goals];
+      let activities = [...s.activities];
+
+      // 1. Working agents spend a little budget + heartbeat
+      agents = agents.map((a) => {
+        if (a.status === "working") {
+          const spend = Math.random() * 4.5 + 0.8;
+          return {
+            ...a,
+            budgetSpent: Math.min(a.budgetMonthly, +(a.budgetSpent + spend).toFixed(2)),
+            lastHeartbeat: new Date().toISOString(),
+          };
+        }
+        return a;
+      });
+
+      // 2. Occasional status flip
+      if (Math.random() > 0.45) {
+        const idx = Math.floor(Math.random() * agents.length);
+        const statuses: AgentStatus[] = ["idle", "working", "paused"];
+        const newStatus = statuses[Math.floor(Math.random() * statuses.length)];
+        if (agents[idx].status !== newStatus) {
+          agents[idx] = {
+            ...agents[idx],
+            status: newStatus,
+            lastHeartbeat: new Date().toISOString(),
+            currentTask:
+              newStatus === "idle" || newStatus === "paused"
+                ? undefined
+                : agents[idx].currentTask,
+          };
+          activities.unshift({
+            id: `act-${Date.now()}-st`,
+            type: "heartbeat",
+            agentId: agents[idx].id,
+            message: `${agents[idx].name} is now ${newStatus}`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      // 3. Advance a random non-done task
+      const movable = tasks.filter(
+        (t) => t.status === "todo" || t.status === "in_progress" || t.status === "review"
+      );
+      if (movable.length > 0 && Math.random() > 0.35) {
+        const t = movable[Math.floor(Math.random() * movable.length)];
+        const nextMap: Partial<Record<Task["status"], Task["status"]>> = {
+          todo: "in_progress",
+          in_progress: "review",
+          review: "done",
+        };
+        const next = nextMap[t.status];
+        if (next) {
+          tasks = tasks.map((tt) =>
+            tt.id === t.id
+              ? { ...tt, status: next, updatedAt: new Date().toISOString() }
+              : tt
+          );
+          const agent = agents.find((a) => a.id === t.assigneeId);
+          activities.unshift({
+            id: `act-${Date.now()}-tk`,
+            type: next === "done" ? "task_completed" : "task_started",
+            agentId: t.assigneeId,
+            message: `${agent?.name || "Agent"} moved '${t.title}' to ${next.replace("_", " ")}`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      // 4. Nudge a random active goal
+      if (Math.random() > 0.55) {
+        const activeGoals = goals.filter((g) => g.status === "active" && g.progress < 100);
+        if (activeGoals.length > 0) {
+          const g = activeGoals[Math.floor(Math.random() * activeGoals.length)];
+          const inc = Math.floor(Math.random() * 4) + 1;
+          const newProg = Math.min(100, g.progress + inc);
+          goals = goals.map((gg) =>
+            gg.id === g.id
+              ? {
+                  ...gg,
+                  progress: newProg,
+                  status: newProg >= 100 ? "completed" : "active",
+                }
+              : gg
+          );
+          activities.unshift({
+            id: `act-${Date.now()}-gl`,
+            type: "goal_update",
+            message: `Progress on '${g.title}' → ${newProg}%`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      // 5. Budget alerts for agents > 80%
+      agents.forEach((a) => {
+        const pct = a.budgetMonthly > 0 ? a.budgetSpent / a.budgetMonthly : 0;
+        if (pct > 0.8 && Math.random() > 0.65) {
+          activities.unshift({
+            id: `act-${Date.now()}-bd-${a.id}`,
+            type: "budget_alert",
+            agentId: a.id,
+            message: `${a.name} has used ${Math.round(pct * 100)}% of monthly budget ($${a.budgetSpent.toFixed(0)} / $${a.budgetMonthly})`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      });
+
+      return {
+        ...s,
+        agents,
+        tasks,
+        goals,
+        activities: activities.slice(0, 50),
+      };
+    });
+  }, []);
 
   const resetData = useCallback(() => {
     setState(defaultState);
@@ -265,7 +431,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateTaskStatus,
         addGoal,
         updateGoalProgress,
+        addTask,
         addActivity,
+        simulateTick,
         resetData,
         isHydrated,
       }}

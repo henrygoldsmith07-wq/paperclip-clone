@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Header from "@/components/Header";
 import { useApp } from "@/context/AppContext";
 import { Task } from "@/lib/types";
@@ -20,12 +21,128 @@ const priorityColors: Record<Task["priority"], string> = {
 };
 
 export default function TasksPage() {
-  const { tasks, agents, updateTaskStatus, assignTask } = useApp();
+  const { tasks, agents, goals, updateTaskStatus, assignTask, addTask } = useApp();
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<Task["priority"]>("medium");
+  const [assigneeId, setAssigneeId] = useState("");
+  const [goalId, setGoalId] = useState("");
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    addTask({
+      title: title.trim(),
+      description: description.trim() || "No description",
+      priority,
+      assigneeId: assigneeId || undefined,
+      goalId: goalId || undefined,
+      status: "backlog",
+    });
+    setTitle("");
+    setDescription("");
+    setPriority("medium");
+    setAssigneeId("");
+    setGoalId("");
+    setShowForm(false);
+  }
 
   return (
     <>
       <Header title="Tasks" subtitle="Ticket system with full audit trail" />
       <div className="flex-1 overflow-x-auto p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm text-muted">
+            {tasks.length} total tasks · click Simulate in the header to watch work progress
+          </p>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+          >
+            {showForm ? "Cancel" : "+ New Task"}
+          </button>
+        </div>
+
+        {showForm && (
+          <form
+            onSubmit={handleCreate}
+            className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block text-xs text-muted">Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What needs to be done?"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                required
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block text-xs text-muted">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional details…"
+                rows={2}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Task["priority"])}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted">Assignee</label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="">Unassigned</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.avatar} {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted">Linked Goal</label>
+              <select
+                value={goalId}
+                onChange={(e) => setGoalId(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="">None</option>
+                {goals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end sm:col-span-2 lg:col-span-3">
+              <button
+                type="submit"
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              >
+                Create Task
+              </button>
+            </div>
+          </form>
+        )}
+
         <div className="flex min-w-max gap-4">
           {columns.map((col) => {
             const colTasks = tasks.filter((t) => t.status === col.key);

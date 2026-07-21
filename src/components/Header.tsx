@@ -3,7 +3,7 @@
 import { useApp } from "@/context/AppContext";
 
 export default function Header({ title, subtitle }: { title: string; subtitle?: string }) {
-  const { company, agents } = useApp();
+  const { company, agents, simulateTick } = useApp();
   const activeCount = agents.filter((a) => a.status === "working").length;
 
   return (
@@ -16,7 +16,15 @@ export default function Header({ title, subtitle }: { title: string; subtitle?: 
           <p className="text-xs text-muted">{subtitle}</p>
         )}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={simulateTick}
+          className="hidden items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-accent/50 hover:bg-accent/10 sm:flex"
+          title="Advance the simulation (agents work, tasks progress, budgets update)"
+        >
+          <span className="text-sm">⚡</span>
+          Simulate
+        </button>
         <div className="hidden items-center gap-2 rounded-full bg-card px-3 py-1.5 text-xs sm:flex">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75"></span>

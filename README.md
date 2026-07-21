@@ -5,18 +5,18 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
 > **If OpenClaw is an employee, Paperclip is the company.**  
 > This clone gives you the control plane: org charts, goals, budgets, tasks, and live activity.
 
-![Next.js](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8) ![Vercel](https://img.shields.io/badge/Deploy-Vercel-black) ![License](https://img.shields.io/badge/License-MIT-green)
+![Next.js](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8) ![Vercel](https://img.shields.io/badge/Deploy-Vercel-black)
 
 ## Features
 
 - **Dashboard** — Mission overview, live stats, activity feed
 - **Agents** — Hire new agents, set budgets, pause/resume, monitor heartbeats
 - **Goals** — Company mission alignment, progress tracking
-- **Tasks** — Kanban board with priorities, assignment, status workflow
+- **Tasks** — Kanban board with priorities, assignment, status workflow + **create new tasks**
 - **Org Chart** — Hierarchical view of your AI team with reporting lines
-- **Persistent state** — localStorage so your company survives refreshes (hydration-safe)
+- **Live Simulation** — Click **Simulate** in the header to advance the world: agents work & spend budget, tasks move forward, goals progress, and new activity appears
+- **Persistent state** — localStorage so your company survives refreshes
 - **Dark, modern UI** — Built with Tailwind CSS v4
-- **Zero backend required** — Pure frontend demo, perfect for learning or extending
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ No environment variables required. Pure frontend + localStorage.
 - **React 19**
 - **TypeScript**
 - **Tailwind CSS v4**
-- **localStorage** for demo persistence (with proper hydration handling)
+- **localStorage** for demo persistence
 
 ## Project Structure
 
@@ -67,20 +67,14 @@ src/
 │   │   ├── page.tsx          # Overview
 │   │   ├── agents/page.tsx   # Agent management
 │   │   ├── goals/page.tsx    # Goals
-│   │   ├── tasks/page.tsx    # Kanban
+│   │   ├── tasks/page.tsx    # Kanban + create tasks
 │   │   └── org/page.tsx      # Org chart
 │   ├── layout.tsx
 │   └── page.tsx              # Redirects to /dashboard
-├── components/               # UI components
-├── context/AppContext.tsx    # Global state + actions (hydration-safe)
+├── components/               # UI components (Header has Simulate button)
+├── context/AppContext.tsx    # Global state + actions + simulateTick
 └── lib/                      # Types & seed data
 ```
-
-## Recent Improvements
-
-- Added MIT License
-- Fixed potential React hydration mismatch when loading state from localStorage
-- Exposed `isHydrated` flag for safer client-side rendering of dynamic content
 
 ## How it differs from the real Paperclip
 
