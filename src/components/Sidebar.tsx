@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useApp } from "@/context/AppContext";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -18,6 +19,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { resetData } = useApp();
 
   return (
     <>
@@ -99,7 +101,17 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border p-4 space-y-3">
+          <button
+            onClick={() => {
+              if (confirm("Reset all demo data to the original state?")) {
+                resetData();
+              }
+            }}
+            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-card-hover hover:text-foreground"
+          >
+            ↺ Reset Demo Data
+          </button>
           <div className="rounded-lg bg-card p-3">
             <div className="text-xs font-medium text-foreground">Open Source</div>
             <div className="mt-0.5 text-[11px] text-muted">
