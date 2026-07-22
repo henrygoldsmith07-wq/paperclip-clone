@@ -10,16 +10,16 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
 ## Features
 
 - **Dashboard** — Mission overview, live stats, activity feed + **Simulate Tick**
-- **Agents** — Hire, search/filter, pause/resume, budgets, skills, delete
+- **Agents** — Hire, search/filter, pause/resume, **Pause all / Resume all**, budgets, skills, delete
 - **Goals** — Create, track progress, delete
-- **Tasks** — Full Kanban (create, assign, priority, delete, status workflow)
+- **Tasks** — Full Kanban with **search**, **priority filter**, create, assign, delete, status workflow
 - **Org Chart** — Hierarchical view with live status indicators + budget tooltips
-- **Settings** — Edit company name & mission, **auto-simulate toggle**, reset demo
-- **Keyboard shortcuts**
-  - `S` → Simulate Tick
-  - `G` then `D / A / T / O / G / S` → navigate pages
+- **Settings** — Company identity, auto-simulate, **export/import JSON**, clear activity log, reset demo
+- **Toast notifications** — Feedback on simulate, hire, delete, import/export
+- **Global Simulate** — Header button + keyboard `S` on every page
+- **Keyboard shortcuts** — `S` simulate · `G` then `D / A / T / O / G / S` navigate
 - **Live simulation** — Manual or automatic (every 4s) agent activity
-- **Persistent state** — localStorage survives refresh (with `isHydrated` guards on every page)
+- **Persistent state** — localStorage survives refresh (with `isHydrated` guards)
 - **Skeleton loading** — polished pulse placeholders while state hydrates
 - **Mobile responsive** — Hamburger sidebar, adaptive layout
 - **Accessible** — Focus rings, ARIA labels, keyboard friendly
@@ -66,8 +66,8 @@ src/
 │   ├── goals/            # Goals
 │   ├── tasks/            # Kanban board
 │   ├── org/              # Org chart
-│   └── settings/         # Company settings + auto-simulate
-├── components/           # UI components + KeyboardShortcuts + Skeleton
+│   └── settings/         # Company settings + export/import
+├── components/           # UI + KeyboardShortcuts + Skeleton + Toast
 ├── context/AppContext.tsx
 └── lib/                  # Types & seed data
 ```
@@ -76,10 +76,8 @@ src/
 
 - Fixed Next.js hydration mismatch via `isHydrated` guard in AppContext + all dashboard pages.
 - Fixed runtime error on Tasks page (`addTask` → `createTask`).
-- Full skeleton loading states on Dashboard, Agents, Goals, Tasks, and Org Chart.
-- Enriched seed activity feed for a more realistic demo experience.
-- UI polish: Sidebar, AgentCard, ActivityFeed, StatCard, Header.
-- **Tasks / Goals / Org polish**: colored kanban columns + richer task cards, goal cards with status accent bars, org nodes with status rings and cleaner connectors.
+- Full skeleton loading + UI polish across Dashboard, Agents, Goals, Tasks, Org Chart.
+- **New features**: toast system, global Simulate in Header, task search/priority filter/delete, bulk Pause/Resume agents, export/import JSON state, clear activity log.
 
 ## License
 
