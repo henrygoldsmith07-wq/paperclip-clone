@@ -3,10 +3,12 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 
 export default function KeyboardShortcuts() {
   const router = useRouter();
   const { simulateTick } = useApp();
+  const { toast } = useToast();
   const gPressed = useRef(false);
   const gTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -23,9 +25,10 @@ export default function KeyboardShortcuts() {
 
       const key = e.key.toLowerCase();
 
-      if (key === "s" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (key === "s" && !e.metaKey && !e.ctrlKey && !e.altKey && !gPressed.current) {
         e.preventDefault();
         simulateTick();
+        toast("⚡ Simulation tick complete", "success");
         return;
       }
 
@@ -70,7 +73,7 @@ export default function KeyboardShortcuts() {
       window.removeEventListener("keydown", handler);
       if (gTimeout.current) clearTimeout(gTimeout.current);
     };
-  }, [router, simulateTick]);
+  }, [router, simulateTick, toast]);
 
   return null;
 }
