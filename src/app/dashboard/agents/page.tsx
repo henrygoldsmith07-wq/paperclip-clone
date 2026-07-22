@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Header from "@/components/Header";
 import AgentCard from "@/components/AgentCard";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 import { AgentRole, AgentStatus } from "@/lib/types";
 
 const ROLES: AgentRole[] = [
@@ -22,7 +23,8 @@ const ROLES: AgentRole[] = [
 const AVATARS = ["⚡", "🛡️", "📣", "💰", "⚙️", "🎨", "💼", "🎧", "🔬", "✍️", "🚀", "🧠"];
 
 export default function AgentsPage() {
-  const { agents, hireAgent, isHydrated } = useApp();
+  const { agents, hireAgent, setAllAgentsStatus, isHydrated } = useApp();
+  const { toast } = useToast();
   const [showHire, setShowHire] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState<AgentRole>("Engineer");
@@ -59,6 +61,7 @@ export default function AgentsPage() {
       model,
       reportsTo: role === "CEO" ? undefined : "agt-001",
     });
+    toast(`${name.trim()} hired`, "success");
     setName("");
     setSkills("");
     setShowHire(false);
@@ -99,12 +102,32 @@ export default function AgentsPage() {
               <option value="error">Error</option>
             </select>
           </div>
-          <button
-            onClick={() => setShowHire(true)}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-          >
-            + Hire Agent
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                setAllAgentsStatus("paused");
+                toast("All agents paused", "warning");
+              }}
+              className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted hover:bg-card-hover hover:text-foreground"
+            >
+              Pause all
+            </button>
+            <button
+              onClick={() => {
+                setAllAgentsStatus("working");
+                toast("All agents resumed", "success");
+              }}
+              className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted hover:bg-card-hover hover:text-foreground"
+            >
+              Resume all
+            </button>
+            <button
+              onClick={() => setShowHire(true)}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+            >
+              + Hire Agent
+            </button>
+          </div>
         </div>
 
         <p className="text-sm text-muted">
@@ -113,7 +136,7 @@ export default function AgentsPage() {
         </p>
 
         {showHire && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in">
               <h2 className="text-lg font-semibold">Hire a new agent</h2>
               <p className="mt-1 text-sm text-muted">
