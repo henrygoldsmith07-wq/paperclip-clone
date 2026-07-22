@@ -262,4 +262,18 @@ export const initialActivities: Activity[] = [
     message: "Zeus: All agents aligned on Q3 mission. Let's ship.",
     timestamp: "2026-07-21T10:00:00.000Z",
   },
+  {
+    id: "act-008",
+    type: "task_started",
+    agentId: "agt-006",
+    message: "Iris began drafting outreach sequence for indie hackers",
+    timestamp: "2026-07-21T09:45:00.000Z",
+  },
+  {
+    id: "act-009",
+    type: "heartbeat",
+    agentId: "agt-001",
+    message: "Zeus heartbeat — reviewing resource allocation",
+    timestamp: "2026-07-21T15:58:00.000Z",
+  },
 ];
