@@ -54,18 +54,23 @@ export default function GoalsPage() {
       <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted">
-            {active.length} active · {completed.length} completed
+            <span className="font-medium text-foreground">{active.length}</span>{" "}
+            active ·{" "}
+            <span className="font-medium text-foreground">
+              {completed.length}
+            </span>{" "}
+            completed
           </p>
           <button
             onClick={() => setShowAdd(true)}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-accent-hover"
           >
             + New Goal
           </button>
         </div>
 
         {showAdd && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in">
               <h2 className="text-lg font-semibold">Create a new goal</h2>
               <p className="mt-1 text-sm text-muted">
@@ -78,18 +83,20 @@ export default function GoalsPage() {
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g. Launch v1 of the product"
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted">Description</label>
+                  <label className="text-xs font-medium text-muted">
+                    Description
+                  </label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
                     placeholder="What does success look like?"
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-y"
                   />
                 </div>
                 <div>
@@ -97,7 +104,7 @@ export default function GoalsPage() {
                   <select
                     value={ownerId}
                     onChange={(e) => setOwnerId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
                   >
                     <option value="">Select agent…</option>
                     {agents.map((a) => (
@@ -128,15 +135,15 @@ export default function GoalsPage() {
         )}
 
         {goals.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card py-20 text-center">
-            <p className="text-4xl mb-3">🎯</p>
-            <p className="text-muted">No goals yet</p>
+          <div className="rounded-xl border border-dashed border-border bg-card/50 py-20 text-center">
+            <p className="text-4xl mb-3 opacity-60">🎯</p>
+            <p className="font-medium text-muted">No goals yet</p>
             <p className="mt-1 text-sm text-muted">
               Create your first company goal to give agents direction
             </p>
             <button
               onClick={() => setShowAdd(true)}
-              className="mt-4 text-sm text-accent hover:underline"
+              className="mt-4 text-sm font-medium text-accent hover:underline"
             >
               + Create a goal
             </button>
@@ -145,11 +152,29 @@ export default function GoalsPage() {
           <div className="space-y-4">
             {goals.map((goal) => {
               const owner = agents.find((a) => a.id === goal.ownerId);
+              const statusBar =
+                goal.status === "completed"
+                  ? "bg-success"
+                  : goal.status === "blocked"
+                    ? "bg-danger"
+                    : "bg-accent";
+              const progressColor =
+                goal.progress >= 100
+                  ? "bg-success"
+                  : goal.progress >= 60
+                    ? "bg-accent"
+                    : "bg-accent/80";
+
               return (
                 <div
                   key={goal.id}
-                  className="rounded-xl border border-border bg-card p-5 transition-colors hover:border-accent/20"
+                  className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:shadow-lg hover:shadow-black/15"
                 >
+                  {/* Status accent bar */}
+                  <div
+                    className={`absolute inset-x-0 top-0 h-0.5 ${statusBar} opacity-50 group-hover:opacity-80 transition-opacity`}
+                  />
+
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -169,22 +194,27 @@ export default function GoalsPage() {
                         </span>
                       </div>
                       {goal.description && (
-                        <p className="mt-1.5 text-sm text-muted leading-relaxed">
+                        <p className="mt-1.5 text-sm leading-relaxed text-muted">
                           {goal.description}
                         </p>
                       )}
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted">
                         {owner && (
-                          <span>
-                            {owner.avatar} {owner.name}
+                          <span className="flex items-center gap-1.5">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px]">
+                              {owner.avatar}
+                            </span>
+                            {owner.name}
                           </span>
                         )}
-                        {goal.dueDate && <span>Due {goal.dueDate}</span>}
+                        {goal.dueDate && (
+                          <span className="tabular-nums">Due {goal.dueDate}</span>
+                        )}
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                      <div className="text-2xl font-semibold text-accent tabular-nums">
+                      <div className="text-2xl font-semibold tabular-nums text-accent">
                         {goal.progress}%
                       </div>
                       <button
@@ -193,7 +223,7 @@ export default function GoalsPage() {
                             deleteGoal(goal.id);
                           }
                         }}
-                        className="mt-1 text-[10px] text-muted hover:text-danger"
+                        className="mt-1 text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
                       >
                         Delete
                       </button>
@@ -203,11 +233,11 @@ export default function GoalsPage() {
                   <div className="mt-4">
                     <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
                       <div
-                        className="h-full rounded-full bg-accent transition-all duration-500"
+                        className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
                         style={{ width: `${goal.progress}%` }}
                       />
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2.5 flex items-center gap-2">
                       <input
                         type="range"
                         min={0}
@@ -216,7 +246,7 @@ export default function GoalsPage() {
                         onChange={(e) =>
                           updateGoalProgress(goal.id, Number(e.target.value))
                         }
-                        className="flex-1 h-1.5 accent-accent cursor-pointer"
+                        className="h-1.5 flex-1 cursor-pointer accent-accent"
                       />
                       <div className="flex gap-1">
                         <button
@@ -226,7 +256,7 @@ export default function GoalsPage() {
                               Math.max(0, goal.progress - 5)
                             )
                           }
-                          className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:bg-card-hover"
+                          className="rounded-md px-1.5 py-0.5 text-[10px] text-muted hover:bg-card-hover"
                         >
                           −5
                         </button>
@@ -237,13 +267,13 @@ export default function GoalsPage() {
                               Math.min(100, goal.progress + 5)
                             )
                           }
-                          className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:bg-card-hover"
+                          className="rounded-md px-1.5 py-0.5 text-[10px] text-muted hover:bg-card-hover"
                         >
                           +5
                         </button>
                         <button
                           onClick={() => updateGoalProgress(goal.id, 100)}
-                          className="rounded px-1.5 py-0.5 text-[10px] text-success hover:bg-success/10"
+                          className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-success hover:bg-success/10"
                         >
                           Done
                         </button>
