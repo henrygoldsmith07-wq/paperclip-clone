@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Header from "@/components/Header";
 import AgentCard from "@/components/AgentCard";
+import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { AgentRole } from "@/lib/types";
 
@@ -31,9 +32,20 @@ export default function AgentsPage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12 text-muted">
-        Loading agents…
-      </div>
+      <>
+        <Header title="Agents" subtitle="Loading agents…" />
+        <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-44 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
