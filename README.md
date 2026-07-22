@@ -9,18 +9,18 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
 
 ## Features
 
-- **Dashboard** — Mission overview, live stats, activity feed + **Simulate Tick**
+- **Dashboard** — Mission overview, live stats, **budget alerts**, activity feed with clear
 - **Agents** — Hire, search/filter, pause/resume, **Pause all / Resume all**, budgets, skills, delete
 - **Goals** — Create, track progress, delete
 - **Tasks** — Full Kanban with **search**, **priority filter**, create, assign, delete, status workflow
 - **Org Chart** — Hierarchical view with live status indicators + budget tooltips
-- **Settings** — Company identity, auto-simulate, **export/import JSON**, clear activity log, reset demo
+- **Settings** — Company identity, auto-simulate, **export/import JSON**, **reset budgets**, clear activity, reset demo
 - **Toast notifications** — Feedback on simulate, hire, delete, import/export
 - **Global Simulate** — Header button + keyboard `S` on every page
 - **Keyboard shortcuts** — `S` simulate · `G` then `D / A / T / O / G / S` navigate
 - **Live simulation** — Manual or automatic (every 4s) agent activity
 - **Persistent state** — localStorage survives refresh (with `isHydrated` guards)
-- **Skeleton loading** — polished pulse placeholders while state hydrates
+- **Skeleton loading** — on every dashboard page while state hydrates
 - **Mobile responsive** — Hamburger sidebar, adaptive layout
 - **Accessible** — Focus rings, ARIA labels, keyboard friendly
 - **Dark, modern UI** — Tailwind CSS v4
@@ -61,12 +61,12 @@ No environment variables required.
 ```
 src/
 ├── app/dashboard/
-│   ├── page.tsx          # Overview + Simulate Tick
+│   ├── page.tsx          # Overview + budget alerts
 │   ├── agents/           # Agent management
 │   ├── goals/            # Goals
 │   ├── tasks/            # Kanban board
 │   ├── org/              # Org chart
-│   └── settings/         # Company settings + export/import
+│   └── settings/         # Identity, export/import, budgets
 ├── components/           # UI + KeyboardShortcuts + Skeleton + Toast
 ├── context/AppContext.tsx
 └── lib/                  # Types & seed data
@@ -74,10 +74,11 @@ src/
 
 ## Recent Improvements
 
-- Fixed Next.js hydration mismatch via `isHydrated` guard in AppContext + all dashboard pages.
-- Fixed runtime error on Tasks page (`addTask` → `createTask`).
-- Full skeleton loading + UI polish across Dashboard, Agents, Goals, Tasks, Org Chart.
-- **New features**: toast system, global Simulate in Header, task search/priority filter/delete, bulk Pause/Resume agents, export/import JSON state, clear activity log.
+- Full skeleton coverage (Agents + Settings included).
+- Dashboard budget alerts for agents at ≥70% spend.
+- One-click **Reset Budgets** without wiping company data.
+- Clear activity from the dashboard feed header.
+- Removed duplicate Simulate control (Header is the single source).
 
 ## License
 
