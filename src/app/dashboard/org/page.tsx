@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
+import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { Agent } from "@/lib/types";
 
@@ -74,9 +75,23 @@ export default function OrgPage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12 text-muted">
-        Loading org chart…
-      </div>
+      <>
+        <Header
+          title="Org Chart"
+          subtitle="Loading hierarchy…"
+        />
+        <div className="flex-1 overflow-auto p-6 pt-16 lg:p-8 lg:pt-8">
+          <div className="flex min-w-max flex-col items-center pb-8 gap-6">
+            <Skeleton className="h-28 w-44 rounded-xl" />
+            <div className="h-5 w-px bg-border" />
+            <div className="flex gap-6">
+              <Skeleton className="h-28 w-40 rounded-xl" />
+              <Skeleton className="h-28 w-40 rounded-xl" />
+              <Skeleton className="h-28 w-40 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 
