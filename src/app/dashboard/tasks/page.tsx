@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Header from "@/components/Header";
+import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { Task } from "@/lib/types";
 
@@ -31,9 +32,33 @@ export default function TasksPage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12 text-muted">
-        Loading tasks…
-      </div>
+      <>
+        <Header title="Tasks" subtitle="Loading tasks…" />
+        <div className="flex-1 overflow-x-auto p-6 pt-16 lg:pt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <div className="flex min-w-max gap-4">
+            {columns.map((col) => (
+              <div
+                key={col.key}
+                className="flex w-72 flex-col rounded-xl border border-border bg-card"
+              >
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-5 w-6 rounded-full" />
+                </div>
+                <div className="space-y-2 p-3">
+                  {[1, 2].map((i) => (
+                    <Skeleton key={i} className="h-24 rounded-lg" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
