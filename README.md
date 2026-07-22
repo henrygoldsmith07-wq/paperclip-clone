@@ -20,6 +20,7 @@ A lightweight, beautiful **AI agent orchestration dashboard** inspired by [Paper
   - `G` then `D / A / T / O / G / S` → navigate pages
 - **Live simulation** — Manual or automatic (every 4s) agent activity
 - **Persistent state** — localStorage survives refresh (with `isHydrated` guards on every page)
+- **Skeleton loading** — polished pulse placeholders while state hydrates
 - **Mobile responsive** — Hamburger sidebar, adaptive layout
 - **Accessible** — Focus rings, ARIA labels, keyboard friendly
 - **Dark, modern UI** — Tailwind CSS v4
@@ -66,7 +67,7 @@ src/
 │   ├── tasks/            # Kanban board
 │   ├── org/              # Org chart
 │   └── settings/         # Company settings + auto-simulate
-├── components/           # UI components + KeyboardShortcuts
+├── components/           # UI components + KeyboardShortcuts + Skeleton
 ├── context/AppContext.tsx
 └── lib/                  # Types & seed data
 ```
@@ -75,7 +76,7 @@ src/
 
 - Fixed Next.js hydration mismatch via `isHydrated` guard in AppContext + all dashboard pages (no more flash of seed data).
 - Fixed runtime error on Tasks page (`addTask` → `createTask`).
-- Consistent loading states across Agents, Goals, Tasks, Org, and Dashboard.
+- Replaced plain-text loading states with proper Skeleton / DashboardSkeleton components for a polished first-paint experience.
 
 ## License
 
