@@ -37,6 +37,7 @@ interface AppContextType extends AppState {
   hireAgent: (agent: Omit<Agent, "id" | "lastHeartbeat" | "budgetSpent">) => void;
   deleteAgent: (id: string) => void;
   updateAgentStatus: (id: string, status: AgentStatus) => void;
+  setAllAgentsStatus: (status: AgentStatus) => void;
   assignTask: (taskId: string, agentId: string) => void;
   updateTaskStatus: (taskId: string, status: Task["status"]) => void;
   createTask: (
@@ -50,8 +51,11 @@ interface AppContextType extends AppState {
   deleteGoal: (id: string) => void;
   updateCompany: (updates: Partial<Company>) => void;
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
+  clearActivities: () => void;
   simulateTick: () => void;
   resetData: () => void;
+  importState: (data: AppState) => void;
+  exportState: () => AppState;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -75,6 +79,19 @@ function loadState(): AppState {
     /* ignore corrupt data */
   }
   return defaultState;
+}
+
+function isValidState(data: unknown): data is AppState {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return (
+    Array.isArray(d.agents) &&
+    Array.isArray(d.goals) &&
+    Array.isArray(d.tasks) &&
+    Array.isArray(d.activities) &&
+    typeof d.company === "object" &&
+    d.company !== null
+  );
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -160,6 +177,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           : a
       ),
+    }));
+  }, []);
+
+  const setAllAgentsStatus = useCallback((status: AgentStatus) => {
+    setState((s) => ({
+      ...s,
+      agents: s.agents.map((a) => ({
+        ...a,
+        status,
+        lastHeartbeat: new Date().toISOString(),
+        currentTask:
+          status === "idle" || status === "paused" ? undefined : a.currentTask,
+      })),
+      activities: [
+        {
+          id: `act-${Date.now()}`,
+          type: "message" as const,
+          message: `All agents set to ${status}`,
+          timestamp: new Date().toISOString(),
+        },
+        ...s.activities,
+      ].slice(0, 100),
     }));
   }, []);
 
@@ -255,10 +294,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const deleteTask = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.filter((t) => t.id !== id),
-    }));
+    setState((s) => {
+      const task = s.tasks.find((t) => t.id === id);
+      return {
+        ...s,
+        tasks: s.tasks.filter((t) => t.id !== id),
+        activities: task
+          ? [
+              {
+                id: `act-${Date.now()}`,
+                type: "message" as const,
+                message: `Task deleted: ${task.title}`,
+                timestamp: new Date().toISOString(),
+              },
+              ...s.activities,
+            ].slice(0, 100)
+          : s.activities,
+      };
+    });
   }, []);
 
   const addGoal = useCallback(
@@ -340,6 +393,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const clearActivities = useCallback(() => {
+    setState((s) => ({ ...s, activities: [] }));
+  }, []);
+
   const simulateTick = useCallback(() => {
     setState((s) => {
       let agents = s.agents.map((a) => ({ ...a }));
@@ -352,7 +409,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const spend = +(Math.random() * 3.2 + 0.4).toFixed(2);
           return {
             ...a,
-            budgetSpent: Math.min(a.budgetMonthly, +(a.budgetSpent + spend).toFixed(2)),
+            budgetSpent: Math.min(
+              a.budgetMonthly,
+              +(a.budgetSpent + spend).toFixed(2)
+            ),
             lastHeartbeat: new Date().toISOString(),
           };
         }
@@ -475,6 +535,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const importState = useCallback((data: AppState) => {
+    if (!isValidState(data)) return;
+    setState(data);
+  }, []);
+
+  const exportState = useCallback(() => state, [state]);
+
   return (
     <AppContext.Provider
       value={{
@@ -483,6 +550,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         hireAgent,
         deleteAgent,
         updateAgentStatus,
+        setAllAgentsStatus,
         assignTask,
         updateTaskStatus,
         createTask,
@@ -492,8 +560,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteGoal,
         updateCompany,
         addActivity,
+        clearActivities,
         simulateTick,
         resetData,
+        importState,
+        exportState,
       }}
     >
       {children}
