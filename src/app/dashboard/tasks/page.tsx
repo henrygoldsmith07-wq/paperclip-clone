@@ -48,6 +48,7 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<
     Task["priority"] | "all"
   >("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -58,9 +59,13 @@ export default function TasksPage() {
         t.description.toLowerCase().includes(q);
       const matchesPriority =
         priorityFilter === "all" || t.priority === priorityFilter;
-      return matchesSearch && matchesPriority;
+      const matchesAssignee =
+        assigneeFilter === "all" ||
+        (assigneeFilter === "unassigned" && !t.assigneeId) ||
+        t.assigneeId === assigneeFilter;
+      return matchesSearch && matchesPriority && matchesAssignee;
     });
-  }, [tasks, search, priorityFilter]);
+  }, [tasks, search, priorityFilter, assigneeFilter]);
 
   if (!isHydrated) {
     return (
@@ -140,6 +145,19 @@ export default function TasksPage() {
               <option value="medium">Medium</option>
               <option value="low">Low</option>
             </select>
+            <select
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm outline-none focus:border-accent"
+            >
+              <option value="all">All assignees</option>
+              <option value="unassigned">Unassigned</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.avatar} {a.name}
+                </option>
+              ))}
+            </select>
             <p className="text-xs text-muted">
               {filteredTasks.length} of {tasks.length} tasks
             </p>
@@ -155,7 +173,7 @@ export default function TasksPage() {
         {showForm && (
           <form
             onSubmit={handleCreate}
-            className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/10 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in"
+            className="mb-6 grid animate-fade-in gap-3 rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/10 sm:grid-cols-2 lg:grid-cols-3"
           >
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="mb-1.5 block text-xs font-medium text-muted">
@@ -179,7 +197,7 @@ export default function TasksPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional details…"
                 rows={2}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+                className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -267,6 +285,7 @@ export default function TasksPage() {
                     const assignee = agents.find(
                       (a) => a.id === task.assigneeId
                     );
+                    const linkedGoal = goals.find((g) => g.id === task.goalId);
                     return (
                       <div
                         key={task.id}
@@ -304,6 +323,12 @@ export default function TasksPage() {
                               {task.description}
                             </p>
                           )}
+
+                        {linkedGoal && (
+                          <p className="mt-2 truncate text-[10px] text-accent/80">
+                            🎯 {linkedGoal.title}
+                          </p>
+                        )}
 
                         <div className="mt-3 flex items-center justify-between gap-2">
                           {assignee ? (
