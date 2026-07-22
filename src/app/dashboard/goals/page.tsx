@@ -1,17 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Header from "@/components/Header";
 import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 
 export default function GoalsPage() {
-  const { goals, agents, addGoal, updateGoalProgress, deleteGoal, isHydrated } =
-    useApp();
+  const {
+    goals,
+    agents,
+    tasks,
+    addGoal,
+    updateGoalProgress,
+    deleteGoal,
+    isHydrated,
+  } = useApp();
+  const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [ownerId, setOwnerId] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "completed" | "blocked"
+  >("all");
+
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return goals;
+    return goals.filter((g) => g.status === statusFilter);
+  }, [goals, statusFilter]);
 
   if (!isHydrated) {
     return (
@@ -39,6 +56,7 @@ export default function GoalsPage() {
       description: description.trim(),
       ownerId: ownerId || agents[0]?.id || "",
     });
+    toast(`Goal created: ${title.trim()}`, "success");
     setTitle("");
     setDescription("");
     setOwnerId("");
@@ -53,14 +71,30 @@ export default function GoalsPage() {
       <Header title="Goals" subtitle="Every task traces back to the mission" />
       <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            <span className="font-medium text-foreground">{active.length}</span>{" "}
-            active ·{" "}
-            <span className="font-medium text-foreground">
-              {completed.length}
-            </span>{" "}
-            completed
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted">
+              <span className="font-medium text-foreground">{active.length}</span>{" "}
+              active ·{" "}
+              <span className="font-medium text-foreground">
+                {completed.length}
+              </span>{" "}
+              completed
+            </p>
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(
+                  e.target.value as "all" | "active" | "completed" | "blocked"
+                )
+              }
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm outline-none focus:border-accent"
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
           <button
             onClick={() => setShowAdd(true)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-accent-hover"
@@ -71,7 +105,7 @@ export default function GoalsPage() {
 
         {showAdd && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in">
+            <div className="w-full max-w-md animate-fade-in rounded-2xl border border-border bg-card p-6 shadow-2xl">
               <h2 className="text-lg font-semibold">Create a new goal</h2>
               <p className="mt-1 text-sm text-muted">
                 Goals give agents direction and measurable outcomes
@@ -96,7 +130,7 @@ export default function GoalsPage() {
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
                     placeholder="What does success look like?"
-                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+                    className="mt-1.5 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
                   />
                 </div>
                 <div>
@@ -134,24 +168,31 @@ export default function GoalsPage() {
           </div>
         )}
 
-        {goals.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/50 py-20 text-center">
-            <p className="text-4xl mb-3 opacity-60">🎯</p>
-            <p className="font-medium text-muted">No goals yet</p>
-            <p className="mt-1 text-sm text-muted">
-              Create your first company goal to give agents direction
+            <p className="mb-3 text-4xl opacity-60">🎯</p>
+            <p className="font-medium text-muted">
+              {goals.length === 0 ? "No goals yet" : "No goals match this filter"}
             </p>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="mt-4 text-sm font-medium text-accent hover:underline"
-            >
-              + Create a goal
-            </button>
+            <p className="mt-1 text-sm text-muted">
+              {goals.length === 0
+                ? "Create your first company goal to give agents direction"
+                : "Try a different status filter"}
+            </p>
+            {goals.length === 0 && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="mt-4 text-sm font-medium text-accent hover:underline"
+              >
+                + Create a goal
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
-            {goals.map((goal) => {
+            {filtered.map((goal) => {
               const owner = agents.find((a) => a.id === goal.ownerId);
+              const linkedTasks = tasks.filter((t) => t.goalId === goal.id);
               const statusBar =
                 goal.status === "completed"
                   ? "bg-success"
@@ -170,9 +211,8 @@ export default function GoalsPage() {
                   key={goal.id}
                   className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:shadow-lg hover:shadow-black/15"
                 >
-                  {/* Status accent bar */}
                   <div
-                    className={`absolute inset-x-0 top-0 h-0.5 ${statusBar} opacity-50 group-hover:opacity-80 transition-opacity`}
+                    className={`absolute inset-x-0 top-0 h-0.5 ${statusBar} opacity-50 transition-opacity group-hover:opacity-80`}
                   />
 
                   <div className="flex items-start justify-between gap-4">
@@ -210,10 +250,14 @@ export default function GoalsPage() {
                         {goal.dueDate && (
                           <span className="tabular-nums">Due {goal.dueDate}</span>
                         )}
+                        <span>
+                          {linkedTasks.length} linked task
+                          {linkedTasks.length !== 1 ? "s" : ""}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
+                    <div className="shrink-0 text-right">
                       <div className="text-2xl font-semibold tabular-nums text-accent">
                         {goal.progress}%
                       </div>
@@ -221,9 +265,10 @@ export default function GoalsPage() {
                         onClick={() => {
                           if (confirm(`Delete goal "${goal.title}"?`)) {
                             deleteGoal(goal.id);
+                            toast("Goal deleted", "warning");
                           }
                         }}
-                        className="mt-1 text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
+                        className="mt-1 text-[10px] text-muted opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
                       >
                         Delete
                       </button>
@@ -272,7 +317,10 @@ export default function GoalsPage() {
                           +5
                         </button>
                         <button
-                          onClick={() => updateGoalProgress(goal.id, 100)}
+                          onClick={() => {
+                            updateGoalProgress(goal.id, 100);
+                            toast(`Goal completed: ${goal.title}`, "success");
+                          }}
                           className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-success hover:bg-success/10"
                         >
                           Done
