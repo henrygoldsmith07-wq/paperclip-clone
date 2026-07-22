@@ -74,9 +74,10 @@ src/
 
 ## Recent Improvements
 
-- Fixed Next.js hydration mismatch via `isHydrated` guard in AppContext + all dashboard pages (no more flash of seed data).
+- Fixed Next.js hydration mismatch via `isHydrated` guard in AppContext + all dashboard pages.
 - Fixed runtime error on Tasks page (`addTask` → `createTask`).
-- Replaced plain-text loading states with proper Skeleton / DashboardSkeleton components for a polished first-paint experience.
+- Full skeleton loading states on Dashboard, Agents, Goals, Tasks, and Org Chart.
+- Enriched seed activity feed for a more realistic demo experience.
 
 ## License
 
