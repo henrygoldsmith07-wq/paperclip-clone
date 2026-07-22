@@ -22,19 +22,19 @@ export default function StatCard({
 
   const barColor =
     accent === "green"
-      ? "bg-success/20"
+      ? "bg-success"
       : accent === "amber"
-        ? "bg-warning/20"
+        ? "bg-warning"
         : accent === "red"
-          ? "bg-danger/20"
-          : "bg-accent/20";
+          ? "bg-danger"
+          : "bg-accent";
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover">
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover hover:shadow-lg hover:shadow-black/20">
       <div
-        className={`absolute inset-x-0 top-0 h-0.5 ${barColor} opacity-0 transition-opacity group-hover:opacity-100`}
+        className={`absolute inset-x-0 top-0 h-0.5 ${barColor} opacity-40 transition-opacity group-hover:opacity-80`}
       />
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted">
             {label}
@@ -48,7 +48,7 @@ export default function StatCard({
             <p className="mt-1 text-xs text-muted truncate">{sub}</p>
           )}
         </div>
-        <span className="text-2xl opacity-70 transition-transform group-hover:scale-110">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-800/80 text-xl transition-transform group-hover:scale-105">
           {icon}
         </span>
       </div>
