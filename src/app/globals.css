@@ -52,6 +52,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Text selection */
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--foreground);
+}
+
 /* Focus visible for accessibility */
 :focus-visible {
   outline: 2px solid var(--ring);
@@ -109,6 +115,11 @@ textarea:focus-visible {
 }
 
 /* Smooth transitions on interactive elements */
-button, a, select, input {
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+button, a, select, input, textarea {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Keyboard key styling used in tips */
+kbd {
+  font-family: var(--font-mono), ui-monospace, monospace;
 }
