@@ -52,6 +52,7 @@ interface AppContextType extends AppState {
   updateCompany: (updates: Partial<Company>) => void;
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   clearActivities: () => void;
+  resetBudgets: () => void;
   simulateTick: () => void;
   resetData: () => void;
   importState: (data: AppState) => void;
@@ -397,6 +398,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, activities: [] }));
   }, []);
 
+  const resetBudgets = useCallback(() => {
+    setState((s) => ({
+      ...s,
+      agents: s.agents.map((a) => ({ ...a, budgetSpent: 0 })),
+      activities: [
+        {
+          id: `act-${Date.now()}`,
+          type: "message" as const,
+          message: "All agent budgets reset to $0 spent",
+          timestamp: new Date().toISOString(),
+        },
+        ...s.activities,
+      ].slice(0, 100),
+    }));
+  }, []);
+
   const simulateTick = useCallback(() => {
     setState((s) => {
       let agents = s.agents.map((a) => ({ ...a }));
@@ -561,6 +578,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateCompany,
         addActivity,
         clearActivities,
+        resetBudgets,
         simulateTick,
         resetData,
         importState,
