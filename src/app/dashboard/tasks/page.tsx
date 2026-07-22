@@ -6,12 +6,16 @@ import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { Task } from "@/lib/types";
 
-const columns: { key: Task["status"]; label: string }[] = [
-  { key: "backlog", label: "Backlog" },
-  { key: "todo", label: "To Do" },
-  { key: "in_progress", label: "In Progress" },
-  { key: "review", label: "Review" },
-  { key: "done", label: "Done" },
+const columns: {
+  key: Task["status"];
+  label: string;
+  accent: string;
+}[] = [
+  { key: "backlog", label: "Backlog", accent: "bg-zinc-500" },
+  { key: "todo", label: "To Do", accent: "bg-blue-500" },
+  { key: "in_progress", label: "In Progress", accent: "bg-accent" },
+  { key: "review", label: "Review", accent: "bg-warning" },
+  { key: "done", label: "Done", accent: "bg-success" },
 ];
 
 const priorityColors: Record<Task["priority"], string> = {
@@ -22,7 +26,15 @@ const priorityColors: Record<Task["priority"], string> = {
 };
 
 export default function TasksPage() {
-  const { tasks, agents, goals, updateTaskStatus, assignTask, createTask, isHydrated } = useApp();
+  const {
+    tasks,
+    agents,
+    goals,
+    updateTaskStatus,
+    assignTask,
+    createTask,
+    isHydrated,
+  } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -84,14 +96,18 @@ export default function TasksPage() {
   return (
     <>
       <Header title="Tasks" subtitle="Ticket system with full audit trail" />
-      <div className="flex-1 overflow-x-auto p-6">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex-1 overflow-x-auto p-6 pt-16 lg:pt-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted">
-            {tasks.length} total tasks · click Simulate in the header to watch work progress
+            {tasks.length} total tasks · press{" "}
+            <kbd className="rounded border border-border bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">
+              S
+            </kbd>{" "}
+            to simulate progress
           </p>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+            className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition-opacity hover:opacity-90"
           >
             {showForm ? "Cancel" : "+ New Task"}
           </button>
@@ -100,33 +116,42 @@ export default function TasksPage() {
         {showForm && (
           <form
             onSubmit={handleCreate}
-            className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3"
+            className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/10 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in"
           >
             <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1 block text-xs text-muted">Title</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                Title
+              </label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="What needs to be done?"
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
                 required
+                autoFocus
               />
             </div>
             <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1 block text-xs text-muted">Description</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                Description
+              </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional details…"
                 rows={2}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-y"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted">Priority</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                Priority
+              </label>
               <select
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as Task["priority"])}
+                onChange={(e) =>
+                  setPriority(e.target.value as Task["priority"])
+                }
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
               >
                 <option value="low">Low</option>
@@ -136,7 +161,9 @@ export default function TasksPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted">Assignee</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                Assignee
+              </label>
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
@@ -151,7 +178,9 @@ export default function TasksPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted">Linked Goal</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                Linked Goal
+              </label>
               <select
                 value={goalId}
                 onChange={(e) => setGoalId(e.target.value)}
@@ -176,21 +205,28 @@ export default function TasksPage() {
           </form>
         )}
 
-        <div className="flex min-w-max gap-4">
+        <div className="flex min-w-max gap-4 pb-4">
           {columns.map((col) => {
             const colTasks = tasks.filter((t) => t.status === col.key);
             return (
               <div
                 key={col.key}
-                className="flex w-72 flex-col rounded-xl border border-border bg-card"
+                className="flex w-72 flex-col rounded-xl border border-border bg-card/80 overflow-hidden"
               >
-                <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                  <h3 className="text-sm font-semibold">{col.label}</h3>
-                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] text-muted">
+                {/* Column header with colored accent */}
+                <div className="relative flex items-center justify-between border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-2 w-2 rounded-full ${col.accent}`}
+                    />
+                    <h3 className="text-sm font-semibold">{col.label}</h3>
+                  </div>
+                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted">
                     {colTasks.length}
                   </span>
                 </div>
-                <div className="flex-1 space-y-2 overflow-y-auto p-3">
+
+                <div className="flex-1 space-y-2 overflow-y-auto p-3 min-h-[120px]">
                   {colTasks.map((task) => {
                     const assignee = agents.find(
                       (a) => a.id === task.assigneeId
@@ -198,29 +234,37 @@ export default function TasksPage() {
                     return (
                       <div
                         key={task.id}
-                        className="rounded-lg border border-border bg-background p-3 transition-colors hover:border-accent/30"
+                        className="group rounded-lg border border-border bg-background p-3.5 shadow-sm transition-all hover:border-accent/40 hover:shadow-md hover:shadow-black/10"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium leading-snug">
+                          <p className="text-sm font-medium leading-snug text-foreground">
                             {task.title}
                           </p>
                           <span
-                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${priorityColors[task.priority]}`}
+                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize ${priorityColors[task.priority]}`}
                           >
                             {task.priority}
                           </span>
                         </div>
-                        <p className="mt-1.5 line-clamp-2 text-xs text-muted">
-                          {task.description}
-                        </p>
-                        <div className="mt-3 flex items-center justify-between">
+
+                        {task.description &&
+                          task.description !== "No description" && (
+                            <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted">
+                              {task.description}
+                            </p>
+                          )}
+
+                        <div className="mt-3 flex items-center justify-between gap-2">
                           {assignee ? (
-                            <span className="text-xs text-muted">
-                              {assignee.avatar} {assignee.name}
+                            <span className="flex items-center gap-1.5 text-xs text-muted">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px]">
+                                {assignee.avatar}
+                              </span>
+                              {assignee.name}
                             </span>
                           ) : (
                             <select
-                              className="rounded border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted outline-none"
+                              className="rounded-md border border-border bg-card px-1.5 py-1 text-[11px] text-muted outline-none hover:border-accent/40"
                               defaultValue=""
                               onChange={(e) => {
                                 if (e.target.value)
@@ -245,7 +289,7 @@ export default function TasksPage() {
                                 e.target.value as Task["status"]
                               )
                             }
-                            className="rounded border border-border bg-card px-1.5 py-0.5 text-[11px] outline-none"
+                            className="rounded-md border border-border bg-card px-1.5 py-1 text-[11px] outline-none hover:border-accent/40"
                           >
                             {columns.map((c) => (
                               <option key={c.key} value={c.key}>
@@ -257,10 +301,11 @@ export default function TasksPage() {
                       </div>
                     );
                   })}
+
                   {colTasks.length === 0 && (
-                    <p className="py-6 text-center text-xs text-muted">
-                      No tasks
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <p className="text-xs text-muted/70">No tasks</p>
+                    </div>
                   )}
                 </div>
               </div>
