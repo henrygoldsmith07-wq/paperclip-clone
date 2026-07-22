@@ -5,12 +5,32 @@ import { useApp } from "@/context/AppContext";
 
 const statusStyles: Record<
   Agent["status"],
-  { bg: string; text: string; label: string }
+  { bg: string; text: string; label: string; ring: string }
 > = {
-  working: { bg: "bg-success/15", text: "text-success", label: "Working" },
-  idle: { bg: "bg-zinc-500/15", text: "text-zinc-400", label: "Idle" },
-  paused: { bg: "bg-warning/15", text: "text-warning", label: "Paused" },
-  error: { bg: "bg-danger/15", text: "text-danger", label: "Error" },
+  working: {
+    bg: "bg-success/15",
+    text: "text-success",
+    label: "Working",
+    ring: "ring-success/20",
+  },
+  idle: {
+    bg: "bg-zinc-500/15",
+    text: "text-zinc-400",
+    label: "Idle",
+    ring: "ring-zinc-500/10",
+  },
+  paused: {
+    bg: "bg-warning/15",
+    text: "text-warning",
+    label: "Paused",
+    ring: "ring-warning/20",
+  },
+  error: {
+    bg: "bg-danger/15",
+    text: "text-danger",
+    label: "Error",
+    ring: "ring-danger/20",
+  },
 };
 
 function timeAgo(iso: string) {
@@ -30,14 +50,25 @@ export default function AgentCard({ agent }: { agent: Agent }) {
   );
 
   return (
-    <div className="group rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover">
+    <div
+      className={`group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover hover:shadow-lg hover:shadow-black/20`}
+    >
+      {/* Subtle top accent when working */}
+      {agent.status === "working" && (
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-success/60" />
+      )}
+
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xl">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xl ring-2 ${style.ring}`}
+          >
             {agent.avatar}
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{agent.name}</h3>
+            <h3 className="font-semibold text-foreground truncate">
+              {agent.name}
+            </h3>
             <p className="text-xs text-muted">{agent.role}</p>
           </div>
         </div>
@@ -52,18 +83,18 @@ export default function AgentCard({ agent }: { agent: Agent }) {
       </div>
 
       {agent.currentTask && (
-        <p className="mt-3 line-clamp-2 text-xs text-muted">
-          <span className="text-foreground/70">Working on:</span>{" "}
+        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-muted">
+          <span className="font-medium text-foreground/70">Working on:</span>{" "}
           {agent.currentTask}
         </p>
       )}
 
       {agent.skills && agent.skills.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {agent.skills.slice(0, 4).map((skill) => (
             <span
               key={skill}
-              className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-muted"
+              className="rounded-md bg-zinc-800/80 px-2 py-0.5 text-[10px] font-medium text-muted"
             >
               {skill}
             </span>
@@ -71,19 +102,21 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         </div>
       )}
 
+      {/* Budget */}
       <div className="mt-4">
-        <div className="mb-1 flex justify-between text-[11px]">
+        <div className="mb-1.5 flex justify-between text-[11px]">
           <span className="text-muted">Budget</span>
           <span
             className={
               budgetPct > 85
-                ? "text-danger font-medium"
+                ? "font-medium text-danger"
                 : budgetPct > 60
                   ? "text-warning"
                   : "text-foreground"
             }
           >
-            ${agent.budgetSpent.toFixed(0)} / ${agent.budgetMonthly}
+            ${agent.budgetSpent.toFixed(0)}{" "}
+            <span className="text-muted">/ ${agent.budgetMonthly}</span>
           </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
@@ -100,12 +133,17 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-[11px] text-muted">
-        <span className="truncate max-w-[55%]">Model: {agent.model}</span>
-        <span title={agent.lastHeartbeat}>♥ {timeAgo(agent.lastHeartbeat)}</span>
+      <div className="mt-3.5 flex items-center justify-between text-[11px] text-muted">
+        <span className="truncate max-w-[55%] font-mono text-[10px]">
+          {agent.model}
+        </span>
+        <span title={agent.lastHeartbeat} className="tabular-nums">
+          ♥ {timeAgo(agent.lastHeartbeat)}
+        </span>
       </div>
 
-      <div className="mt-4 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+      {/* Actions — always visible on mobile, hover-reveal on desktop */}
+      <div className="mt-4 flex gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         {agent.status !== "working" && (
           <button
             onClick={() => updateAgentStatus(agent.id, "working")}
