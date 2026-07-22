@@ -2,6 +2,7 @@
 
 import { Agent } from "@/lib/types";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 
 const statusStyles: Record<
   Agent["status"],
@@ -43,6 +44,7 @@ function timeAgo(iso: string) {
 
 export default function AgentCard({ agent }: { agent: Agent }) {
   const { updateAgentStatus, deleteAgent } = useApp();
+  const { toast } = useToast();
   const style = statusStyles[agent.status];
   const budgetPct = Math.min(
     100,
@@ -50,23 +52,20 @@ export default function AgentCard({ agent }: { agent: Agent }) {
   );
 
   return (
-    <div
-      className={`group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover hover:shadow-lg hover:shadow-black/20`}
-    >
-      {/* Subtle top accent when working */}
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/30 hover:bg-card-hover hover:shadow-lg hover:shadow-black/20">
       {agent.status === "working" && (
         <div className="absolute inset-x-0 top-0 h-0.5 bg-success/60" />
       )}
 
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex min-w-0 items-center gap-3">
           <div
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xl ring-2 ${style.ring}`}
           >
             {agent.avatar}
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-foreground truncate">
+            <h3 className="truncate font-semibold text-foreground">
               {agent.name}
             </h3>
             <p className="text-xs text-muted">{agent.role}</p>
@@ -102,7 +101,6 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         </div>
       )}
 
-      {/* Budget */}
       <div className="mt-4">
         <div className="mb-1.5 flex justify-between text-[11px]">
           <span className="text-muted">Budget</span>
@@ -134,7 +132,7 @@ export default function AgentCard({ agent }: { agent: Agent }) {
       </div>
 
       <div className="mt-3.5 flex items-center justify-between text-[11px] text-muted">
-        <span className="truncate max-w-[55%] font-mono text-[10px]">
+        <span className="max-w-[55%] truncate font-mono text-[10px]">
           {agent.model}
         </span>
         <span title={agent.lastHeartbeat} className="tabular-nums">
@@ -142,11 +140,13 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         </span>
       </div>
 
-      {/* Actions — always visible on mobile, hover-reveal on desktop */}
       <div className="mt-4 flex gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         {agent.status !== "working" && (
           <button
-            onClick={() => updateAgentStatus(agent.id, "working")}
+            onClick={() => {
+              updateAgentStatus(agent.id, "working");
+              toast(`${agent.name} resumed`, "success");
+            }}
             className="flex-1 rounded-md bg-accent/15 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-accent/25"
           >
             Resume
@@ -154,7 +154,10 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         )}
         {agent.status === "working" && (
           <button
-            onClick={() => updateAgentStatus(agent.id, "paused")}
+            onClick={() => {
+              updateAgentStatus(agent.id, "paused");
+              toast(`${agent.name} paused`, "warning");
+            }}
             className="flex-1 rounded-md bg-warning/15 px-2 py-1.5 text-[11px] font-medium text-warning hover:bg-warning/25"
           >
             Pause
@@ -162,7 +165,10 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         )}
         {agent.status !== "idle" && (
           <button
-            onClick={() => updateAgentStatus(agent.id, "idle")}
+            onClick={() => {
+              updateAgentStatus(agent.id, "idle");
+              toast(`${agent.name} set to idle`, "info");
+            }}
             className="flex-1 rounded-md bg-zinc-700/50 px-2 py-1.5 text-[11px] font-medium text-muted hover:bg-zinc-700"
           >
             Idle
@@ -173,6 +179,7 @@ export default function AgentCard({ agent }: { agent: Agent }) {
             onClick={() => {
               if (confirm(`Remove ${agent.name} from the team?`)) {
                 deleteAgent(agent.id);
+                toast(`${agent.name} removed`, "warning");
               }
             }}
             className="rounded-md bg-danger/15 px-2.5 py-1.5 text-[11px] font-medium text-danger hover:bg-danger/25"
