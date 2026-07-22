@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Header from "@/components/Header";
 import AgentCard from "@/components/AgentCard";
+import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { AgentRole, AgentStatus } from "@/lib/types";
@@ -69,9 +70,24 @@ export default function AgentsPage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12 text-muted">
-        Loading agents…
-      </div>
+      <>
+        <Header title="Agents" subtitle="Loading team…" />
+        <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <Skeleton className="h-9 w-48" />
+              <Skeleton className="h-9 w-32" />
+            </div>
+            <Skeleton className="h-9 w-28" />
+          </div>
+          <Skeleton className="h-4 w-40" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-52 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -225,14 +241,15 @@ export default function AgentsPage() {
         )}
 
         {filtered.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card py-16 text-center">
-            <p className="text-muted">No agents match your filters</p>
+          <div className="rounded-xl border border-dashed border-border bg-card/50 py-16 text-center">
+            <p className="text-4xl mb-3 opacity-50">🤖</p>
+            <p className="font-medium text-muted">No agents match your filters</p>
             <button
               onClick={() => {
                 setSearch("");
                 setStatusFilter("all");
               }}
-              className="mt-3 text-sm text-accent hover:underline"
+              className="mt-3 text-sm font-medium text-accent hover:underline"
             >
               Clear filters
             </button>
