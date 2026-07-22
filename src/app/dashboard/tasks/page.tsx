@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Header from "@/components/Header";
 import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 import { Task } from "@/lib/types";
 
 const columns: {
@@ -33,14 +34,33 @@ export default function TasksPage() {
     updateTaskStatus,
     assignTask,
     createTask,
+    deleteTask,
     isHydrated,
   } = useApp();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [assigneeId, setAssigneeId] = useState("");
   const [goalId, setGoalId] = useState("");
+  const [search, setSearch] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<
+    Task["priority"] | "all"
+  >("all");
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      const q = search.toLowerCase();
+      const matchesSearch =
+        !q ||
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q);
+      const matchesPriority =
+        priorityFilter === "all" || t.priority === priorityFilter;
+      return matchesSearch && matchesPriority;
+    });
+  }, [tasks, search, priorityFilter]);
 
   if (!isHydrated) {
     return (
@@ -85,6 +105,7 @@ export default function TasksPage() {
       goalId: goalId || undefined,
       status: "backlog",
     });
+    toast(`Task created: ${title.trim()}`, "success");
     setTitle("");
     setDescription("");
     setPriority("medium");
@@ -97,14 +118,32 @@ export default function TasksPage() {
     <>
       <Header title="Tasks" subtitle="Ticket system with full audit trail" />
       <div className="flex-1 overflow-x-auto p-6 pt-16 lg:pt-6">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            {tasks.length} total tasks · press{" "}
-            <kbd className="rounded border border-border bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">
-              S
-            </kbd>{" "}
-            to simulate progress
-          </p>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <input
+              type="search"
+              placeholder="Search tasks…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full max-w-xs rounded-lg border border-border bg-card px-3 py-1.5 text-sm outline-none focus:border-accent"
+            />
+            <select
+              value={priorityFilter}
+              onChange={(e) =>
+                setPriorityFilter(e.target.value as Task["priority"] | "all")
+              }
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm outline-none focus:border-accent"
+            >
+              <option value="all">All priorities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <p className="text-xs text-muted">
+              {filteredTasks.length} of {tasks.length} tasks
+            </p>
+          </div>
           <button
             onClick={() => setShowForm((v) => !v)}
             className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition-opacity hover:opacity-90"
@@ -207,18 +246,15 @@ export default function TasksPage() {
 
         <div className="flex min-w-max gap-4 pb-4">
           {columns.map((col) => {
-            const colTasks = tasks.filter((t) => t.status === col.key);
+            const colTasks = filteredTasks.filter((t) => t.status === col.key);
             return (
               <div
                 key={col.key}
-                className="flex w-72 flex-col rounded-xl border border-border bg-card/80 overflow-hidden"
+                className="flex w-72 flex-col overflow-hidden rounded-xl border border-border bg-card/80"
               >
-                {/* Column header with colored accent */}
                 <div className="relative flex items-center justify-between border-b border-border px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full ${col.accent}`}
-                    />
+                    <span className={`h-2 w-2 rounded-full ${col.accent}`} />
                     <h3 className="text-sm font-semibold">{col.label}</h3>
                   </div>
                   <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted">
@@ -226,7 +262,7 @@ export default function TasksPage() {
                   </span>
                 </div>
 
-                <div className="flex-1 space-y-2 overflow-y-auto p-3 min-h-[120px]">
+                <div className="min-h-[120px] flex-1 space-y-2 overflow-y-auto p-3">
                   {colTasks.map((task) => {
                     const assignee = agents.find(
                       (a) => a.id === task.assigneeId
@@ -240,11 +276,26 @@ export default function TasksPage() {
                           <p className="text-sm font-medium leading-snug text-foreground">
                             {task.title}
                           </p>
-                          <span
-                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize ${priorityColors[task.priority]}`}
-                          >
-                            {task.priority}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <span
+                              className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize ${priorityColors[task.priority]}`}
+                            >
+                              {task.priority}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete task "${task.title}"?`)) {
+                                  deleteTask(task.id);
+                                  toast("Task deleted", "warning");
+                                }
+                              }}
+                              className="rounded px-1.5 py-0.5 text-[10px] text-muted opacity-0 transition-opacity hover:bg-danger/15 hover:text-danger group-hover:opacity-100"
+                              title="Delete task"
+                              aria-label={`Delete ${task.title}`}
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
 
                         {task.description &&
