@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Header from "@/components/Header";
 import AgentCard from "@/components/AgentCard";
-import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
-import { AgentRole } from "@/lib/types";
+import { AgentRole, AgentStatus } from "@/lib/types";
 
 const ROLES: AgentRole[] = [
   "CEO",
@@ -29,25 +28,21 @@ export default function AgentsPage() {
   const [role, setRole] = useState<AgentRole>("Engineer");
   const [budget, setBudget] = useState(150);
   const [model, setModel] = useState("claude-sonnet-4");
+  const [skills, setSkills] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AgentStatus | "all">("all");
 
-  if (!isHydrated) {
-    return (
-      <>
-        <Header title="Agents" subtitle="Loading agents…" />
-        <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-9 w-28" />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-44 rounded-xl" />
-            ))}
-          </div>
-        </div>
-      </>
-    );
-  }
+  const filtered = useMemo(() => {
+    return agents.filter((a) => {
+      const matchesSearch =
+        !search ||
+        a.name.toLowerCase().includes(search.toLowerCase()) ||
+        a.role.toLowerCase().includes(search.toLowerCase()) ||
+        a.model.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || a.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [agents, search, statusFilter]);
 
   const handleHire = () => {
     if (!name.trim()) return;
@@ -57,23 +52,53 @@ export default function AgentsPage() {
       status: "idle",
       avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
       budgetMonthly: budget,
-      skills: [],
+      skills: skills
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
       model,
       reportsTo: role === "CEO" ? undefined : "agt-001",
     });
     setName("");
+    setSkills("");
     setShowHire(false);
   };
+
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-12 text-muted">
+        Loading agents…
+      </div>
+    );
+  }
 
   return (
     <>
       <Header title="Agents" subtitle="Hire, manage and monitor your AI team" />
-      <div className="flex-1 space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted">
-            {agents.length} agents ·{" "}
-            {agents.filter((a) => a.status === "working").length} working
-          </p>
+      <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              type="search"
+              placeholder="Search agents..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full max-w-xs rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as AgentStatus | "all")
+              }
+              className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              <option value="all">All statuses</option>
+              <option value="working">Working</option>
+              <option value="idle">Idle</option>
+              <option value="paused">Paused</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
           <button
             onClick={() => setShowHire(true)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
@@ -82,7 +107,11 @@ export default function AgentsPage() {
           </button>
         </div>
 
-        {/* Hire modal */}
+        <p className="text-sm text-muted">
+          Showing {filtered.length} of {agents.length} agents ·{" "}
+          {agents.filter((a) => a.status === "working").length} working
+        </p>
+
         {showHire && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in">
@@ -98,6 +127,7 @@ export default function AgentsPage() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Nova"
                     className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                    autoFocus
                   />
                 </div>
                 <div>
@@ -140,6 +170,17 @@ export default function AgentsPage() {
                     <option value="local-llama">Local Llama</option>
                   </select>
                 </div>
+                <div>
+                  <label className="text-xs font-medium text-muted">
+                    Skills (comma-separated)
+                  </label>
+                  <input
+                    value={skills}
+                    onChange={(e) => setSkills(e.target.value)}
+                    placeholder="e.g. TypeScript, Design Systems, Sales"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                  />
+                </div>
               </div>
               <div className="mt-6 flex gap-3">
                 <button
@@ -150,7 +191,8 @@ export default function AgentsPage() {
                 </button>
                 <button
                   onClick={handleHire}
-                  className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+                  disabled={!name.trim()}
+                  className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
                 >
                   Hire Agent
                 </button>
@@ -159,11 +201,26 @@ export default function AgentsPage() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-        </div>
+        {filtered.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card py-16 text-center">
+            <p className="text-muted">No agents match your filters</p>
+            <button
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+              }}
+              className="mt-3 text-sm text-accent hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
