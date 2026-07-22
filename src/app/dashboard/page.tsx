@@ -5,6 +5,7 @@ import StatCard from "@/components/StatCard";
 import ActivityFeed from "@/components/ActivityFeed";
 import { DashboardSkeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -14,9 +15,10 @@ export default function DashboardPage() {
     tasks,
     company,
     resetData,
-    simulateTick,
+    clearActivities,
     isHydrated,
   } = useApp();
+  const { toast } = useToast();
 
   if (!isHydrated) {
     return (
@@ -38,6 +40,14 @@ export default function DashboardPage() {
     (t) => t.status !== "done" && t.status !== "backlog"
   ).length;
 
+  const budgetAlerts = agents
+    .map((a) => ({
+      ...a,
+      pct: a.budgetMonthly > 0 ? a.budgetSpent / a.budgetMonthly : 0,
+    }))
+    .filter((a) => a.pct >= 0.7)
+    .sort((a, b) => b.pct - a.pct);
+
   return (
     <>
       <Header
@@ -49,25 +59,17 @@ export default function DashboardPage() {
           <p className="text-sm text-muted">
             Live overview of your autonomous company
           </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => simulateTick()}
-              className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-card-hover"
-              title="Simulate agent activity"
-            >
-              ⚡ Simulate Tick
-            </button>
-            <button
-              onClick={() => {
-                if (confirm("Reset all data to the original demo company?")) {
-                  resetData();
-                }
-              }}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-card-hover hover:text-foreground"
-            >
-              Reset Demo
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              if (confirm("Reset all data to the original demo company?")) {
+                resetData();
+                toast("Demo data reset", "warning");
+              }
+            }}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-card-hover hover:text-foreground"
+          >
+            Reset Demo
+          </button>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -101,32 +103,83 @@ export default function DashboardPage() {
           />
         </div>
 
+        {budgetAlerts.length > 0 && (
+          <div className="rounded-xl border border-warning/30 bg-warning/5 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-sm">⚠️</span>
+              <h2 className="text-sm font-semibold text-warning">
+                Budget alerts
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {budgetAlerts.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs"
+                >
+                  <span>{a.avatar}</span>
+                  <span className="font-medium">{a.name}</span>
+                  <span
+                    className={
+                      a.pct >= 0.85 ? "text-danger" : "text-warning"
+                    }
+                  >
+                    {Math.round(a.pct * 100)}%
+                  </span>
+                  <span className="text-muted">
+                    ${a.budgetSpent.toFixed(0)} / ${a.budgetMonthly}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-5">
           <div className="space-y-4 lg:col-span-3">
             <div className="rounded-xl border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold text-foreground">Company Mission</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{company.mission}</p>
+              <h2 className="text-sm font-semibold text-foreground">
+                Company Mission
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                {company.mission}
+              </p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">Active Goals</h2>
-                <Link href="/dashboard/goals" className="text-xs font-medium text-accent hover:text-accent-hover">
+                <h2 className="text-sm font-semibold text-foreground">
+                  Active Goals
+                </h2>
+                <Link
+                  href="/dashboard/goals"
+                  className="text-xs font-medium text-accent hover:text-accent-hover"
+                >
                   View all →
                 </Link>
               </div>
               <div className="space-y-4">
-                {goals.filter((g) => g.status === "active").slice(0, 3).map((goal) => (
-                  <div key={goal.id}>
-                    <div className="mb-1.5 flex items-center justify-between text-sm">
-                      <span className="font-medium text-foreground">{goal.title}</span>
-                      <span className="text-xs text-muted">{goal.progress}%</span>
+                {goals
+                  .filter((g) => g.status === "active")
+                  .slice(0, 3)
+                  .map((goal) => (
+                    <div key={goal.id}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-medium text-foreground">
+                          {goal.title}
+                        </span>
+                        <span className="text-xs tabular-nums text-muted">
+                          {goal.progress}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                        <div
+                          className="h-full rounded-full bg-accent transition-all duration-500"
+                          style={{ width: `${goal.progress}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-                      <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${goal.progress}%` }} />
-                    </div>
-                  </div>
-                ))}
+                  ))}
                 {goals.filter((g) => g.status === "active").length === 0 && (
                   <p className="text-sm text-muted">No active goals</p>
                 )}
@@ -135,8 +188,19 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-xl border border-border bg-card lg:col-span-2">
-            <div className="border-b border-border px-5 py-4">
-              <h2 className="text-sm font-semibold text-foreground">Live Activity</h2>
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h2 className="text-sm font-semibold text-foreground">
+                Live Activity
+              </h2>
+              <button
+                onClick={() => {
+                  clearActivities();
+                  toast("Activity cleared", "info");
+                }}
+                className="text-[11px] text-muted hover:text-foreground"
+              >
+                Clear
+              </button>
             </div>
             <div className="p-2">
               <ActivityFeed limit={8} />
@@ -145,21 +209,30 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Link href="/dashboard/agents" className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40 hover:bg-card-hover">
+          <Link
+            href="/dashboard/agents"
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40 hover:bg-card-hover"
+          >
             <span className="text-2xl">🤖</span>
             <div>
               <div className="text-sm font-medium">Manage Agents</div>
               <div className="text-xs text-muted">Hire, pause, budgets</div>
             </div>
           </Link>
-          <Link href="/dashboard/tasks" className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40 hover:bg-card-hover">
+          <Link
+            href="/dashboard/tasks"
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40 hover:bg-card-hover"
+          >
             <span className="text-2xl">✅</span>
             <div>
               <div className="text-sm font-medium">Task Board</div>
               <div className="text-xs text-muted">Assign & track work</div>
             </div>
           </Link>
-          <Link href="/dashboard/org" className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40 hover:bg-card-hover">
+          <Link
+            href="/dashboard/org"
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40 hover:bg-card-hover"
+          >
             <span className="text-2xl">🏢</span>
             <div>
               <div className="text-sm font-medium">Org Chart</div>
