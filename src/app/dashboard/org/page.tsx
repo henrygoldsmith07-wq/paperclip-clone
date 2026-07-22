@@ -14,11 +14,11 @@ function AgentNode({
 }) {
   const statusColor =
     agent.status === "working"
-      ? "border-success/60 bg-success/10 shadow-success/10"
+      ? "border-success/50 bg-success/10 shadow-success/5"
       : agent.status === "paused"
-        ? "border-warning/60 bg-warning/10"
+        ? "border-warning/50 bg-warning/10"
         : agent.status === "error"
-          ? "border-danger/60 bg-danger/10"
+          ? "border-danger/50 bg-danger/10"
           : "border-border bg-card";
 
   const statusDot =
@@ -30,38 +30,56 @@ function AgentNode({
           ? "bg-danger"
           : "bg-zinc-500";
 
+  const ringColor =
+    agent.status === "working"
+      ? "ring-success/30"
+      : agent.status === "paused"
+        ? "ring-warning/30"
+        : agent.status === "error"
+          ? "ring-danger/30"
+          : "ring-zinc-600/30";
+
   return (
     <div className="flex flex-col items-center">
       <div
-        className={`group relative flex w-40 sm:w-44 flex-col items-center rounded-xl border-2 p-3.5 shadow-sm transition-all hover:scale-[1.03] hover:shadow-md ${statusColor}`}
+        className={`group relative flex w-40 sm:w-44 flex-col items-center rounded-xl border-2 p-4 shadow-sm transition-all hover:scale-[1.03] hover:shadow-lg hover:shadow-black/20 ${statusColor}`}
       >
+        {/* Status indicator */}
         <span
-          className={`absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-background ${statusDot} ${
+          className={`absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-background ${statusDot} ${
             agent.status === "working" ? "animate-pulse-dot" : ""
           }`}
           title={agent.status}
         />
 
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800 text-2xl">
+        {/* Avatar with status ring */}
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800 text-2xl ring-2 ${ringColor}`}
+        >
           {agent.avatar}
         </div>
-        <div className="mt-2 text-sm font-semibold text-center leading-tight">
+
+        <div className="mt-2.5 text-sm font-semibold text-center leading-tight">
           {agent.name}
         </div>
-        <div className="text-[11px] text-muted">{agent.role}</div>
-        <div className="mt-0.5 text-[10px] text-muted/80 truncate max-w-full px-1">
+        <div className="mt-0.5 text-[11px] font-medium text-muted">
+          {agent.role}
+        </div>
+        <div className="mt-1 max-w-full truncate px-1 font-mono text-[10px] text-muted/70">
           {agent.model}
         </div>
 
-        <div className="pointer-events-none absolute -bottom-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-zinc-900 px-2 py-1 text-[10px] text-muted opacity-0 shadow-lg transition-opacity group-hover:block group-hover:opacity-100">
+        {/* Budget tooltip on hover */}
+        <div className="pointer-events-none absolute -bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-zinc-900 px-2.5 py-1 text-[10px] text-muted opacity-0 shadow-lg transition-opacity group-hover:block group-hover:opacity-100">
           ${agent.budgetSpent.toFixed(0)} / ${agent.budgetMonthly} spent
         </div>
       </div>
 
       {children && (
         <>
-          <div className="h-5 w-px bg-border" />
-          <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+          {/* Vertical connector */}
+          <div className="h-6 w-px bg-gradient-to-b from-border to-border/40" />
+          <div className="flex flex-wrap justify-center gap-5 sm:gap-8">
             {children}
           </div>
         </>
@@ -76,12 +94,9 @@ export default function OrgPage() {
   if (!isHydrated) {
     return (
       <>
-        <Header
-          title="Org Chart"
-          subtitle="Loading hierarchy…"
-        />
+        <Header title="Org Chart" subtitle="Loading hierarchy…" />
         <div className="flex-1 overflow-auto p-6 pt-16 lg:p-8 lg:pt-8">
-          <div className="flex min-w-max flex-col items-center pb-8 gap-6">
+          <div className="flex min-w-max flex-col items-center gap-6 pb-8">
             <Skeleton className="h-28 w-44 rounded-xl" />
             <div className="h-5 w-px bg-border" />
             <div className="flex gap-6">
@@ -109,18 +124,22 @@ export default function OrgPage() {
       />
       <div className="flex-1 overflow-auto p-6 pt-16 lg:p-8 lg:pt-8">
         {agents.length === 0 ? (
-          <p className="py-20 text-center text-muted">
-            No agents yet. Hire some from the Agents page.
-          </p>
+          <div className="rounded-xl border border-dashed border-border bg-card/50 py-20 text-center">
+            <p className="text-4xl mb-3 opacity-60">🏢</p>
+            <p className="font-medium text-muted">No agents yet</p>
+            <p className="mt-1 text-sm text-muted">
+              Hire some from the Agents page to build your org chart
+            </p>
+          </div>
         ) : (
-          <div className="flex min-w-max flex-col items-center pb-8">
+          <div className="flex min-w-max flex-col items-center pb-10">
             {ceo && (
               <AgentNode agent={ceo}>
                 {directReports.map((report) => {
                   const subReports = getReports(report.id);
                   return (
                     <div key={report.id} className="flex flex-col items-center">
-                      <div className="h-5 w-px bg-border" />
+                      <div className="h-6 w-px bg-gradient-to-b from-border to-border/40" />
                       <AgentNode agent={report}>
                         {subReports.length > 0 &&
                           subReports.map((sub) => (
@@ -128,7 +147,7 @@ export default function OrgPage() {
                               key={sub.id}
                               className="flex flex-col items-center"
                             >
-                              <div className="h-5 w-px bg-border" />
+                              <div className="h-6 w-px bg-gradient-to-b from-border to-border/40" />
                               <AgentNode agent={sub} />
                             </div>
                           ))}
@@ -141,7 +160,8 @@ export default function OrgPage() {
           </div>
         )}
 
-        <div className="mt-10 flex flex-wrap justify-center gap-5 text-xs text-muted">
+        {/* Legend */}
+        <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card/50 px-5 py-3 text-xs text-muted">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-success" />
             Working
