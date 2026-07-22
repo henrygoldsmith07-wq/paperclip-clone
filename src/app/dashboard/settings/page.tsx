@@ -3,15 +3,26 @@
 import { useState, useEffect, useRef } from "react";
 import Header from "@/components/Header";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 
 export default function SettingsPage() {
-  const { company, updateCompany, resetData, simulateTick, isHydrated } =
-    useApp();
+  const {
+    company,
+    updateCompany,
+    resetData,
+    simulateTick,
+    exportState,
+    importState,
+    clearActivities,
+    isHydrated,
+  } = useApp();
+  const { toast } = useToast();
   const [name, setName] = useState(company.name);
   const [mission, setMission] = useState(company.mission);
   const [saved, setSaved] = useState(false);
   const [autoSimulate, setAutoSimulate] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setName(company.name);
@@ -46,15 +57,41 @@ export default function SettingsPage() {
       mission: mission.trim() || company.mission,
     });
     setSaved(true);
+    toast("Company settings saved", "success");
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleExport = () => {
+    const data = exportState();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `paperclip-${company.name.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("State exported", "success");
+  };
+
+  const handleImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        importState(data);
+        toast("State imported successfully", "success");
+      } catch {
+        toast("Invalid JSON file", "warning");
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (
     <>
-      <Header
-        title="Settings"
-        subtitle="Company identity and demo controls"
-      />
+      <Header title="Settings" subtitle="Company identity and demo controls" />
       <div className="flex-1 space-y-8 p-6 pt-16 lg:pt-6 max-w-2xl">
         <section className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-sm font-semibold text-foreground mb-4">
@@ -127,8 +164,62 @@ export default function SettingsPage() {
             </span>
           </label>
           <p className="mt-3 text-[11px] text-muted">
-            You can also press <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">S</kbd> anytime to trigger one tick.
+            You can also press{" "}
+            <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">S</kbd>{" "}
+            anytime to trigger one tick, or use the Simulate button in the header.
           </p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold text-foreground mb-2">
+            Export / Import
+          </h2>
+          <p className="text-xs text-muted mb-4">
+            Save your full company state as JSON, or restore from a previous export.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleExport}
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-card-hover"
+            >
+              ↓ Export JSON
+            </button>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-card-hover"
+            >
+              ↑ Import JSON
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImport(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold text-foreground mb-2">
+            Activity Log
+          </h2>
+          <p className="text-xs text-muted mb-4">
+            Clear the live activity feed without resetting agents, goals, or tasks.
+          </p>
+          <button
+            onClick={() => {
+              clearActivities();
+              toast("Activity log cleared", "info");
+            }}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:bg-card-hover hover:text-foreground"
+          >
+            Clear Activity Log
+          </button>
         </section>
 
         <section className="rounded-xl border border-border bg-card p-6">
@@ -147,6 +238,7 @@ export default function SettingsPage() {
               ) {
                 setAutoSimulate(false);
                 resetData();
+                toast("Demo data reset", "warning");
               }
             }}
             className="rounded-lg border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/20"
@@ -162,31 +254,45 @@ export default function SettingsPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted">Simulate Tick</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">S</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                S
+              </kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Dashboard</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then D</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                G then D
+              </kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Agents</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then A</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                G then A
+              </kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Tasks</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then T</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                G then T
+              </kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Org Chart</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then O</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                G then O
+              </kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Goals</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then G</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                G then G
+              </kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Go to Settings</span>
-              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">G then S</kbd>
+              <kbd className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono">
+                G then S
+              </kbd>
             </div>
           </div>
         </section>
