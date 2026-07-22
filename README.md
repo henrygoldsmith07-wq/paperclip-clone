@@ -78,7 +78,8 @@ src/
 - Fixed runtime error on Tasks page (`addTask` → `createTask`).
 - Full skeleton loading states on Dashboard, Agents, Goals, Tasks, and Org Chart.
 - Enriched seed activity feed for a more realistic demo experience.
-- **UI polish pass**: refined Sidebar (active accent + brand), AgentCard (status glow + hierarchy), ActivityFeed (timeline), StatCard, Header, and selection/shadow details.
+- UI polish: Sidebar, AgentCard, ActivityFeed, StatCard, Header.
+- **Tasks / Goals / Org polish**: colored kanban columns + richer task cards, goal cards with status accent bars, org nodes with status rings and cleaner connectors.
 
 ## License
 
