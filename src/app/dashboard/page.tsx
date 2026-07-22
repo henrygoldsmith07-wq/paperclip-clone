@@ -3,6 +3,7 @@
 import Header from "@/components/Header";
 import StatCard from "@/components/StatCard";
 import ActivityFeed from "@/components/ActivityFeed";
+import { DashboardSkeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import Link from "next/link";
 
@@ -19,9 +20,10 @@ export default function DashboardPage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12 text-muted">
-        Loading mission control…
-      </div>
+      <>
+        <Header title="Dashboard" subtitle="Loading mission control…" />
+        <DashboardSkeleton />
+      </>
     );
   }
 
