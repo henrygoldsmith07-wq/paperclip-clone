@@ -49,6 +49,7 @@ export default function AgentsPage() {
 
   const handleHire = () => {
     if (!name.trim()) return;
+    // reportsTo is resolved inside hireAgent (existing CEO if any)
     hireAgent({
       name: name.trim(),
       role,
@@ -60,7 +61,6 @@ export default function AgentsPage() {
         .map((s) => s.trim())
         .filter(Boolean),
       model,
-      reportsTo: role === "CEO" ? undefined : "agt-001",
     });
     toast(`${name.trim()} hired`, "success");
     setName("");
@@ -153,7 +153,7 @@ export default function AgentsPage() {
 
         {showHire && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in">
+            <div className="w-full max-w-md animate-fade-in rounded-2xl border border-border bg-card p-6 shadow-2xl">
               <h2 className="text-lg font-semibold">Hire a new agent</h2>
               <p className="mt-1 text-sm text-muted">
                 Bring any runtime into your org chart
@@ -242,7 +242,7 @@ export default function AgentsPage() {
 
         {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/50 py-16 text-center">
-            <p className="text-4xl mb-3 opacity-50">🤖</p>
+            <p className="mb-3 text-4xl opacity-50">🤖</p>
             <p className="font-medium text-muted">No agents match your filters</p>
             <button
               onClick={() => {
