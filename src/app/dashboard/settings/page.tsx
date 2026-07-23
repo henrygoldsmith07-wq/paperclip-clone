@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { loadApiKeys, saveApiKeys } from "@/lib/llm";
 
 export default function SettingsPage() {
   const {
@@ -18,12 +19,16 @@ export default function SettingsPage() {
     clearActivities,
     resetBudgets,
     isHydrated,
+    isProcessing,
   } = useApp();
   const { toast } = useToast();
   const [name, setName] = useState(company.name);
   const [mission, setMission] = useState(company.mission);
   const [saved, setSaved] = useState(false);
   const [autoProcess, setAutoProcess] = useState(false);
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
+  const [keysSaved, setKeysSaved] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -33,10 +38,16 @@ export default function SettingsPage() {
   }, [company.name, company.mission]);
 
   useEffect(() => {
+    const keys = loadApiKeys();
+    setOpenaiKey(keys.openai || "");
+    setAnthropicKey(keys.anthropic || "");
+  }, []);
+
+  useEffect(() => {
     if (autoProcess) {
       intervalRef.current = setInterval(() => {
-        processWork();
-      }, 4000);
+        void processWork();
+      }, 12000);
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -69,6 +80,16 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleSaveKeys = () => {
+    saveApiKeys({
+      openai: openaiKey.trim() || undefined,
+      anthropic: anthropicKey.trim() || undefined,
+    });
+    setKeysSaved(true);
+    toast("API keys saved on this device", "success");
+    setTimeout(() => setKeysSaved(false), 2000);
+  };
+
   const handleExport = () => {
     const data = exportState();
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -80,7 +101,7 @@ export default function SettingsPage() {
     a.download = `paperclip-${company.name.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast("State exported", "success");
+    toast("State exported (API keys are not included)", "success");
   };
 
   const handleImport = (file: File) => {
@@ -103,8 +124,68 @@ export default function SettingsPage() {
 
   return (
     <>
-      <Header title="Settings" subtitle="Company identity and workspace controls" />
+      <Header title="Settings" subtitle="API keys, company, workspace" />
       <div className="flex-1 space-y-8 p-6 pt-16 lg:pt-6 max-w-2xl">
+        <section className="rounded-xl border border-accent/30 bg-card p-6">
+          <h2 className="mb-1 text-sm font-semibold text-foreground">
+            API Keys
+          </h2>
+          <p className="mb-4 text-xs text-muted">
+            Required for agents to actually run. Keys are stored only in{" "}
+            <strong>your browser</strong> (localStorage) and sent to your own
+            app when an agent works — not exported with company JSON.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                OpenAI API key{" "}
+                <span className="text-muted/70">(for gpt-* models)</span>
+              </label>
+              <input
+                type="password"
+                autoComplete="off"
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                placeholder="sk-…"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted">
+                Anthropic API key{" "}
+                <span className="text-muted/70">(for claude-* models)</span>
+              </label>
+              <input
+                type="password"
+                autoComplete="off"
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                placeholder="sk-ant-…"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveKeys}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+              >
+                Save API Keys
+              </button>
+              {keysSaved && (
+                <span className="animate-fade-in text-sm text-success">
+                  Saved ✓
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted">
+              Hire agents with Claude or GPT models, assign a task, then press{" "}
+              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">W</kbd>{" "}
+              or <strong>Process Work</strong>.
+            </p>
+          </div>
+        </section>
+
         <section className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-4 text-sm font-semibold text-foreground">
             Company Identity
@@ -158,9 +239,8 @@ export default function SettingsPage() {
             Work Queue
           </h2>
           <p className="mb-4 text-xs text-muted">
-            Automatically advance assigned tasks every 4 seconds
-            (To Do → In Progress → Review → Done). Only real assigned work
-            moves — nothing is random.
+            Auto-run assigned agents every 12 seconds (uses API keys + real model
+            calls). {isProcessing ? "Agent currently running…" : ""}
           </p>
           <label className="flex cursor-pointer items-center gap-3">
             <div className="relative">
@@ -177,11 +257,6 @@ export default function SettingsPage() {
               {autoProcess ? "Auto-process ON" : "Auto-process OFF"}
             </span>
           </label>
-          <p className="mt-3 text-[11px] text-muted">
-            Press{" "}
-            <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">W</kbd>{" "}
-            or use <strong>Process Work</strong> in the header for a single step.
-          </p>
         </section>
 
         <section className="rounded-xl border border-border bg-card p-6">
@@ -189,7 +264,8 @@ export default function SettingsPage() {
             Export / Import
           </h2>
           <p className="mb-4 text-xs text-muted">
-            Save your full company state as JSON, or restore from a previous export.
+            Save company state as JSON (agents, tasks, goals). API keys are never
+            included.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
@@ -222,9 +298,6 @@ export default function SettingsPage() {
           <h2 className="mb-2 text-sm font-semibold text-foreground">
             Budgets & Activity
           </h2>
-          <p className="mb-4 text-xs text-muted">
-            Reset spend counters or clear the activity feed without wiping the company.
-          </p>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => {
@@ -251,9 +324,6 @@ export default function SettingsPage() {
           <h2 className="mb-2 text-sm font-semibold text-foreground">
             Workspace
           </h2>
-          <p className="mb-4 text-xs text-muted">
-            Clear everything and start fresh, or optionally load sample data to explore features.
-          </p>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => {
@@ -280,30 +350,6 @@ export default function SettingsPage() {
             >
               Clear Company
             </button>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-3 text-sm font-semibold text-foreground">
-            Keyboard Shortcuts
-          </h2>
-          <div className="space-y-2 text-sm">
-            {[
-              ["Process Work", "W"],
-              ["Go to Dashboard", "G then D"],
-              ["Go to Agents", "G then A"],
-              ["Go to Tasks", "G then T"],
-              ["Go to Org Chart", "G then O"],
-              ["Go to Goals", "G then G"],
-              ["Go to Settings", "G then S"],
-            ].map(([label, keys]) => (
-              <div key={label} className="flex justify-between">
-                <span className="text-muted">{label}</span>
-                <kbd className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs">
-                  {keys}
-                </kbd>
-              </div>
-            ))}
           </div>
         </section>
       </div>
