@@ -49,6 +49,7 @@ export default function TasksPage() {
     Task["priority"] | "all"
   >("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [expandedOutput, setExpandedOutput] = useState<string | null>(null);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -56,7 +57,8 @@ export default function TasksPage() {
       const matchesSearch =
         !q ||
         t.title.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q);
+        t.description.toLowerCase().includes(q) ||
+        (t.lastOutput || "").toLowerCase().includes(q);
       const matchesPriority =
         priorityFilter === "all" || t.priority === priorityFilter;
       const matchesAssignee =
@@ -121,7 +123,7 @@ export default function TasksPage() {
 
   return (
     <>
-      <Header title="Tasks" subtitle="Ticket system with full audit trail" />
+      <Header title="Tasks" subtitle="Assign work · agents run with your API keys" />
       <div className="flex-1 overflow-x-auto p-6 pt-16 lg:pt-6">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-1 flex-wrap items-center gap-2">
@@ -286,6 +288,7 @@ export default function TasksPage() {
                       (a) => a.id === task.assigneeId
                     );
                     const linkedGoal = goals.find((g) => g.id === task.goalId);
+                    const isOpen = expandedOutput === task.id;
                     return (
                       <div
                         key={task.id}
@@ -328,6 +331,25 @@ export default function TasksPage() {
                           <p className="mt-2 truncate text-[10px] text-accent/80">
                             🎯 {linkedGoal.title}
                           </p>
+                        )}
+
+                        {task.lastOutput && (
+                          <div className="mt-2 rounded-md border border-border/80 bg-zinc-900/50 p-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedOutput(isOpen ? null : task.id)
+                              }
+                              className="text-left text-[10px] font-medium text-accent hover:underline"
+                            >
+                              {isOpen ? "Hide agent output" : "Show agent output"}
+                            </button>
+                            {isOpen && (
+                              <pre className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-muted">
+                                {task.lastOutput}
+                              </pre>
+                            )}
+                          </div>
                         )}
 
                         <div className="mt-3 flex items-center justify-between gap-2">
