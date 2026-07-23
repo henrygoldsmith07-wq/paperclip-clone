@@ -55,7 +55,7 @@ interface AppContextType extends AppState {
   resetBudgets: () => void;
   simulateTick: () => void;
   resetData: () => void;
-  importState: (data: AppState) => void;
+  importState: (data: unknown) => boolean;
   exportState: () => AppState;
 }
 
@@ -63,40 +63,47 @@ const AppContext = createContext<AppContextType | null>(null);
 
 const STORAGE_KEY = "paperclip-clone-state-v4";
 
-const defaultState: AppState = {
-  company: defaultCompany,
-  agents: initialAgents,
-  goals: initialGoals,
-  tasks: initialTasks,
-  activities: initialActivities,
-};
+function uid(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
-function loadState(): AppState {
-  if (typeof window === "undefined") return defaultState;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as AppState;
-  } catch {
-    /* ignore corrupt data */
-  }
-  return defaultState;
+function cloneDefaultState(): AppState {
+  return {
+    company: { ...defaultCompany },
+    agents: initialAgents.map((a) => ({ ...a, skills: [...a.skills] })),
+    goals: initialGoals.map((g) => ({ ...g })),
+    tasks: initialTasks.map((t) => ({ ...t })),
+    activities: initialActivities.map((a) => ({ ...a })),
+  };
 }
 
 function isValidState(data: unknown): data is AppState {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
-  return (
-    Array.isArray(d.agents) &&
-    Array.isArray(d.goals) &&
-    Array.isArray(d.tasks) &&
-    Array.isArray(d.activities) &&
-    typeof d.company === "object" &&
-    d.company !== null
-  );
+  if (!Array.isArray(d.agents) || !Array.isArray(d.goals)) return false;
+  if (!Array.isArray(d.tasks) || !Array.isArray(d.activities)) return false;
+  if (typeof d.company !== "object" || d.company === null) return false;
+  const c = d.company as Record<string, unknown>;
+  if (typeof c.name !== "string" || typeof c.mission !== "string") return false;
+  return true;
+}
+
+function loadState(): AppState {
+  if (typeof window === "undefined") return cloneDefaultState();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (isValidState(parsed)) return parsed;
+    }
+  } catch {
+    /* ignore corrupt data */
+  }
+  return cloneDefaultState();
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(defaultState);
+  const [state, setState] = useState<AppState>(cloneDefaultState);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -118,23 +125,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (agent: Omit<Agent, "id" | "lastHeartbeat" | "budgetSpent">) => {
       const newAgent: Agent = {
         ...agent,
-        id: `agt-${Date.now()}`,
+        id: uid("agt"),
         budgetSpent: 0,
         lastHeartbeat: new Date().toISOString(),
       };
-      setState((s) => ({
-        ...s,
-        agents: [...s.agents, newAgent],
-        activities: [
-          {
-            id: `act-${Date.now()}`,
-            type: "hire",
-            message: `New agent ${newAgent.name} (${newAgent.role}) hired and onboarded`,
-            timestamp: new Date().toISOString(),
-          },
-          ...s.activities,
-        ].slice(0, 100),
-      }));
+      setState((s) => {
+        // Prefer an existing CEO as reportsTo target when not hiring a CEO
+        const ceo = s.agents.find((a) => a.role === "CEO");
+        const withReports =
+          newAgent.role === "CEO"
+            ? { ...newAgent, reportsTo: undefined }
+            : {
+                ...newAgent,
+                reportsTo: newAgent.reportsTo || ceo?.id,
+              };
+        return {
+          ...s,
+          agents: [...s.agents, withReports],
+          activities: [
+            {
+              id: uid("act"),
+              type: "hire" as const,
+              message: `New agent ${withReports.name} (${withReports.role}) hired and onboarded`,
+              timestamp: new Date().toISOString(),
+            },
+            ...s.activities,
+          ].slice(0, 100),
+        };
+      });
     },
     []
   );
@@ -143,15 +161,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => {
       const agent = s.agents.find((a) => a.id === id);
       if (!agent) return s;
+      const ceo = s.agents.find((a) => a.role === "CEO" && a.id !== id);
       return {
         ...s,
-        agents: s.agents.filter((a) => a.id !== id),
+        agents: s.agents
+          .filter((a) => a.id !== id)
+          .map((a) =>
+            a.reportsTo === id ? { ...a, reportsTo: ceo?.id } : a
+          ),
         tasks: s.tasks.map((t) =>
           t.assigneeId === id ? { ...t, assigneeId: undefined } : t
         ),
+        goals: s.goals.map((g) =>
+          g.ownerId === id ? { ...g, ownerId: ceo?.id || "" } : g
+        ),
         activities: [
           {
-            id: `act-${Date.now()}`,
+            id: uid("act"),
             type: "message" as const,
             message: `Agent ${agent.name} was removed from the team`,
             timestamp: new Date().toISOString(),
@@ -193,7 +219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })),
       activities: [
         {
-          id: `act-${Date.now()}`,
+          id: uid("act"),
           type: "message" as const,
           message: `All agents set to ${status}`,
           timestamp: new Date().toISOString(),
@@ -222,7 +248,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ),
         activities: [
           {
-            id: `act-${Date.now()}`,
+            id: uid("act"),
             type: "task_started" as const,
             agentId,
             message: `${agent?.name || "Agent"} assigned to '${task.title}'`,
@@ -240,6 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const task = s.tasks.find((t) => t.id === taskId);
         if (!task) return s;
         const agent = s.agents.find((a) => a.id === task.assigneeId);
+        const label = status.replace(/_/g, " ");
         return {
           ...s,
           tasks: s.tasks.map((t) =>
@@ -249,10 +276,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
           activities: [
             {
-              id: `act-${Date.now()}`,
-              type: (status === "done" ? "task_completed" : "task_started") as const,
+              id: uid("act"),
+              type: (status === "done"
+                ? "task_completed"
+                : "task_started") as const,
               agentId: task.assigneeId,
-              message: `${agent?.name || "System"} moved '${task.title}' to ${status.replace("_", " ")}`,
+              message: `${agent?.name || "System"} moved '${task.title}' to ${label}`,
               timestamp: new Date().toISOString(),
             },
             ...s.activities,
@@ -272,7 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const now = new Date().toISOString();
       const newTask: Task = {
         ...task,
-        id: `task-${Date.now()}`,
+        id: uid("task"),
         status: task.status || "backlog",
         createdAt: now,
         updatedAt: now,
@@ -282,7 +311,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tasks: [newTask, ...s.tasks],
         activities: [
           {
-            id: `act-${Date.now()}`,
+            id: uid("act"),
             type: "task_started" as const,
             message: `New task created: ${newTask.title}`,
             timestamp: now,
@@ -303,7 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activities: task
           ? [
               {
-                id: `act-${Date.now()}`,
+                id: uid("act"),
                 type: "message" as const,
                 message: `Task deleted: ${task.title}`,
                 timestamp: new Date().toISOString(),
@@ -319,7 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (goal: Omit<Goal, "id" | "progress" | "status">) => {
       const newGoal: Goal = {
         ...goal,
-        id: `goal-${Date.now()}`,
+        id: uid("goal"),
         progress: 0,
         status: "active",
       };
@@ -328,7 +357,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         goals: [...s.goals, newGoal],
         activities: [
           {
-            id: `act-${Date.now()}`,
+            id: uid("act"),
             type: "goal_update" as const,
             message: `New goal created: ${newGoal.title}`,
             timestamp: new Date().toISOString(),
@@ -384,7 +413,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activities: [
           {
             ...activity,
-            id: `act-${Date.now()}`,
+            id: uid("act"),
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
@@ -404,7 +433,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       agents: s.agents.map((a) => ({ ...a, budgetSpent: 0 })),
       activities: [
         {
-          id: `act-${Date.now()}`,
+          id: uid("act"),
           type: "message" as const,
           message: "All agent budgets reset to $0 spent",
           timestamp: new Date().toISOString(),
@@ -452,7 +481,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 : agents[idx].currentTask,
           };
           activities.unshift({
-            id: `act-${Date.now()}-st`,
+            id: uid("act"),
             type: "heartbeat",
             agentId: agents[idx].id,
             message: `${agents[idx].name} changed from ${prev} → ${newStatus}`,
@@ -483,10 +512,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           );
           const agent = agents.find((a) => a.id === t.assigneeId);
           activities.unshift({
-            id: `act-${Date.now()}-tk`,
+            id: uid("act"),
             type: next === "done" ? "task_completed" : "task_started",
             agentId: t.assigneeId,
-            message: `${agent?.name || "System"} moved '${t.title}' to ${next.replace("_", " ")}`,
+            message: `${agent?.name || "System"} moved '${t.title}' to ${next.replace(/_/g, " ")}`,
             timestamp: new Date().toISOString(),
           });
         }
@@ -510,7 +539,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               : gg
           );
           activities.unshift({
-            id: `act-${Date.now()}-gl`,
+            id: uid("act"),
             type: "goal_update",
             message: `Progress on '${g.title}' → ${newProg}%`,
             timestamp: new Date().toISOString(),
@@ -522,7 +551,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const pct = a.budgetMonthly > 0 ? a.budgetSpent / a.budgetMonthly : 0;
         if (pct >= 0.85 && Math.random() > 0.72) {
           activities.unshift({
-            id: `act-${Date.now()}-bd-${a.id}`,
+            id: uid("act"),
             type: "budget_alert",
             agentId: a.id,
             message: `${a.name} has used ${Math.round(pct * 100)}% of monthly budget ($${a.budgetSpent.toFixed(0)} / $${a.budgetMonthly})`,
@@ -542,19 +571,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetData = useCallback(() => {
-    setState(defaultState);
+    const next = cloneDefaultState();
+    setState(next);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
         /* ignore */
       }
     }
   }, []);
 
-  const importState = useCallback((data: AppState) => {
-    if (!isValidState(data)) return;
+  const importState = useCallback((data: unknown) => {
+    if (!isValidState(data)) return false;
     setState(data);
+    return true;
   }, []);
 
   const exportState = useCallback(() => state, [state]);
