@@ -17,7 +17,7 @@ import {
   AgentStatus,
 } from "@/lib/types";
 import {
-  company as defaultCompany,
+  company as sampleCompany,
   initialAgents,
   initialGoals,
   initialTasks,
@@ -53,23 +53,40 @@ interface AppContextType extends AppState {
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   clearActivities: () => void;
   resetBudgets: () => void;
-  simulateTick: () => void;
-  resetData: () => void;
+  /** Advance assigned work one step (todo→in_progress→review→done) */
+  processWork: () => void;
+  clearCompany: () => void;
+  loadSampleData: () => void;
   importState: (data: unknown) => boolean;
   exportState: () => AppState;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const STORAGE_KEY = "paperclip-clone-state-v4";
+/** Bumped so old demo localStorage is not reused */
+const STORAGE_KEY = "paperclip-clone-state-v5";
 
 function uid(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function cloneDefaultState(): AppState {
+function emptyState(): AppState {
   return {
-    company: { ...defaultCompany },
+    company: {
+      name: "My Company",
+      mission: "Describe what your team of agents is building.",
+      founded: new Date().toISOString().slice(0, 10),
+    },
+    agents: [],
+    goals: [],
+    tasks: [],
+    activities: [],
+  };
+}
+
+function sampleState(): AppState {
+  return {
+    company: { ...sampleCompany },
     agents: initialAgents.map((a) => ({ ...a, skills: [...a.skills] })),
     goals: initialGoals.map((g) => ({ ...g })),
     tasks: initialTasks.map((t) => ({ ...t })),
@@ -89,7 +106,7 @@ function isValidState(data: unknown): data is AppState {
 }
 
 function loadState(): AppState {
-  if (typeof window === "undefined") return cloneDefaultState();
+  if (typeof window === "undefined") return emptyState();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -97,13 +114,80 @@ function loadState(): AppState {
       if (isValidState(parsed)) return parsed;
     }
   } catch {
-    /* ignore corrupt data */
+    /* ignore */
   }
-  return cloneDefaultState();
+  return emptyState();
+}
+
+/** Goal progress = % of linked tasks done (when any tasks are linked) */
+function deriveGoals(goals: Goal[], tasks: Task[]): Goal[] {
+  return goals.map((g) => {
+    const linked = tasks.filter((t) => t.goalId === g.id);
+    if (linked.length === 0) return g;
+    const done = linked.filter((t) => t.status === "done").length;
+    const progress = Math.round((done / linked.length) * 100);
+    return {
+      ...g,
+      progress,
+      status:
+        progress >= 100
+          ? "completed"
+          : g.status === "completed"
+            ? "active"
+            : g.status,
+    };
+  });
+}
+
+/** Agent working state follows real assigned in-progress / review tasks */
+function deriveAgents(agents: Agent[], tasks: Task[]): Agent[] {
+  return agents.map((a) => {
+    if (a.status === "paused" || a.status === "error") {
+      return { ...a, currentTask: undefined };
+    }
+    const active = tasks.find(
+      (t) =>
+        t.assigneeId === a.id &&
+        (t.status === "in_progress" || t.status === "review")
+    );
+    if (active) {
+      return {
+        ...a,
+        status: "working" as const,
+        currentTask: active.title,
+        lastHeartbeat: new Date().toISOString(),
+      };
+    }
+    const queued = tasks.find(
+      (t) => t.assigneeId === a.id && t.status === "todo"
+    );
+    if (queued) {
+      return {
+        ...a,
+        status: a.status === "working" ? "idle" : a.status,
+        currentTask: undefined,
+      };
+    }
+    if (a.status === "working") {
+      return { ...a, status: "idle" as const, currentTask: undefined };
+    }
+    return { ...a, currentTask: undefined };
+  });
+}
+
+function chargeBudget(agent: Agent, amount: number): Agent {
+  return {
+    ...agent,
+    budgetSpent: Math.min(
+      agent.budgetMonthly,
+      +(agent.budgetSpent + amount).toFixed(2)
+    ),
+    lastHeartbeat: new Date().toISOString(),
+  };
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(cloneDefaultState);
+  const [state, setState] = useState<AppState>(emptyState);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -145,7 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             {
               id: uid("act"),
               type: "hire" as const,
-              message: `New agent ${withReports.name} (${withReports.role}) hired and onboarded`,
+              message: `Hired ${withReports.name} as ${withReports.role}`,
               timestamp: new Date().toISOString(),
             },
             ...s.activities,
@@ -161,16 +245,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const agent = s.agents.find((a) => a.id === id);
       if (!agent) return s;
       const ceo = s.agents.find((a) => a.role === "CEO" && a.id !== id);
+      const tasks = s.tasks.map((t) =>
+        t.assigneeId === id ? { ...t, assigneeId: undefined } : t
+      );
+      const agents = s.agents
+        .filter((a) => a.id !== id)
+        .map((a) => (a.reportsTo === id ? { ...a, reportsTo: ceo?.id } : a));
       return {
         ...s,
-        agents: s.agents
-          .filter((a) => a.id !== id)
-          .map((a) =>
-            a.reportsTo === id ? { ...a, reportsTo: ceo?.id } : a
-          ),
-        tasks: s.tasks.map((t) =>
-          t.assigneeId === id ? { ...t, assigneeId: undefined } : t
-        ),
+        agents: deriveAgents(agents, tasks),
+        tasks,
         goals: s.goals.map((g) =>
           g.ownerId === id ? { ...g, ownerId: ceo?.id || "" } : g
         ),
@@ -178,7 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           {
             id: uid("act"),
             type: "message" as const,
-            message: `Agent ${agent.name} was removed from the team`,
+            message: `Removed ${agent.name} from the team`,
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
@@ -188,9 +272,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateAgentStatus = useCallback((id: string, status: AgentStatus) => {
-    setState((s) => ({
-      ...s,
-      agents: s.agents.map((a) =>
+    setState((s) => {
+      let agents = s.agents.map((a) =>
         a.id === id
           ? {
               ...a,
@@ -202,55 +285,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   : a.currentTask,
             }
           : a
-      ),
-    }));
+      );
+      // Re-sync from tasks unless explicitly paused/error
+      if (status !== "paused" && status !== "error") {
+        agents = deriveAgents(agents, s.tasks);
+      }
+      return { ...s, agents };
+    });
   }, []);
 
   const setAllAgentsStatus = useCallback((status: AgentStatus) => {
-    setState((s) => ({
-      ...s,
-      agents: s.agents.map((a) => ({
+    setState((s) => {
+      let agents = s.agents.map((a) => ({
         ...a,
         status,
         lastHeartbeat: new Date().toISOString(),
         currentTask:
           status === "idle" || status === "paused" ? undefined : a.currentTask,
-      })),
-      activities: [
-        {
-          id: uid("act"),
-          type: "message" as const,
-          message: `All agents set to ${status}`,
-          timestamp: new Date().toISOString(),
-        },
-        ...s.activities,
-      ].slice(0, 100),
-    }));
+      }));
+      if (status !== "paused" && status !== "error") {
+        agents = deriveAgents(agents, s.tasks);
+      }
+      return {
+        ...s,
+        agents,
+        activities: [
+          {
+            id: uid("act"),
+            type: "message" as const,
+            message: `All agents set to ${status}`,
+            timestamp: new Date().toISOString(),
+          },
+          ...s.activities,
+        ].slice(0, 100),
+      };
+    });
   }, []);
 
   const assignTask = useCallback((taskId: string, agentId: string) => {
     setState((s) => {
       const agent = s.agents.find((a) => a.id === agentId);
       const task = s.tasks.find((t) => t.id === taskId);
-      if (!task) return s;
+      if (!task || !agent) return s;
+
+      const tasks = s.tasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              assigneeId: agentId,
+              status: t.status === "backlog" ? "todo" : t.status,
+              updatedAt: new Date().toISOString(),
+            }
+          : t
+      );
+
       return {
         ...s,
-        tasks: s.tasks.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                assigneeId: agentId,
-                status: t.status === "backlog" ? "todo" : t.status,
-                updatedAt: new Date().toISOString(),
-              }
-            : t
-        ),
+        tasks,
+        agents: deriveAgents(s.agents, tasks),
+        goals: deriveGoals(s.goals, tasks),
         activities: [
           {
             id: uid("act"),
             type: "task_started" as const,
             agentId,
-            message: `${agent?.name || "Agent"} assigned to '${task.title}'`,
+            message: `${agent.name} assigned to “${task.title}”`,
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
@@ -268,21 +367,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const label = status.replace(/_/g, " ");
         const activityType: Activity["type"] =
           status === "done" ? "task_completed" : "task_started";
+
+        const tasks = s.tasks.map((t) =>
+          t.id === taskId
+            ? { ...t, status, updatedAt: new Date().toISOString() }
+            : t
+        );
+
+        // Charge budget when work actually starts or completes
+        let agents = s.agents;
+        if (agent && (status === "in_progress" || status === "done")) {
+          const cost = status === "done" ? 1.25 : 0.75;
+          agents = s.agents.map((a) =>
+            a.id === agent.id ? chargeBudget(a, cost) : a
+          );
+        }
+        agents = deriveAgents(agents, tasks);
+        const goals = deriveGoals(s.goals, tasks);
+
+        const extras: Activity[] = [];
+        if (status === "done" && task.goalId) {
+          const g = goals.find((x) => x.id === task.goalId);
+          if (g) {
+            extras.push({
+              id: uid("act"),
+              type: "goal_update",
+              message: `Goal “${g.title}” now ${g.progress}% (from task completion)`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+
         return {
           ...s,
-          tasks: s.tasks.map((t) =>
-            t.id === taskId
-              ? { ...t, status, updatedAt: new Date().toISOString() }
-              : t
-          ),
+          tasks,
+          agents,
+          goals,
           activities: [
             {
               id: uid("act"),
               type: activityType,
               agentId: task.assigneeId,
-              message: `${agent?.name || "System"} moved '${task.title}' to ${label}`,
+              message: `${agent?.name || "You"} moved “${task.title}” → ${label}`,
               timestamp: new Date().toISOString(),
             },
+            ...extras,
             ...s.activities,
           ].slice(0, 100),
         };
@@ -305,19 +434,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: now,
         updatedAt: now,
       };
-      setState((s) => ({
-        ...s,
-        tasks: [newTask, ...s.tasks],
-        activities: [
-          {
-            id: uid("act"),
-            type: "task_started" as const,
-            message: `New task created: ${newTask.title}`,
-            timestamp: now,
-          },
-          ...s.activities,
-        ].slice(0, 100),
-      }));
+      setState((s) => {
+        const tasks = [newTask, ...s.tasks];
+        return {
+          ...s,
+          tasks,
+          agents: deriveAgents(s.agents, tasks),
+          goals: deriveGoals(s.goals, tasks),
+          activities: [
+            {
+              id: uid("act"),
+              type: "task_started" as const,
+              message: `Created task “${newTask.title}”`,
+              timestamp: now,
+            },
+            ...s.activities,
+          ].slice(0, 100),
+        };
+      });
     },
     []
   );
@@ -325,15 +459,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteTask = useCallback((id: string) => {
     setState((s) => {
       const task = s.tasks.find((t) => t.id === id);
+      const tasks = s.tasks.filter((t) => t.id !== id);
       return {
         ...s,
-        tasks: s.tasks.filter((t) => t.id !== id),
+        tasks,
+        agents: deriveAgents(s.agents, tasks),
+        goals: deriveGoals(s.goals, tasks),
         activities: task
           ? [
               {
                 id: uid("act"),
                 type: "message" as const,
-                message: `Task deleted: ${task.title}`,
+                message: `Deleted task “${task.title}”`,
                 timestamp: new Date().toISOString(),
               },
               ...s.activities,
@@ -358,7 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           {
             id: uid("act"),
             type: "goal_update" as const,
-            message: `New goal created: ${newGoal.title}`,
+            message: `Created goal “${newGoal.title}”`,
             timestamp: new Date().toISOString(),
           },
           ...s.activities,
@@ -369,33 +506,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const updateGoalProgress = useCallback((id: string, progress: number) => {
-    setState((s) => ({
-      ...s,
-      goals: s.goals.map((g) =>
-        g.id === id
-          ? {
-              ...g,
-              progress: Math.min(100, Math.max(0, progress)),
-              status:
-                progress >= 100
-                  ? "completed"
-                  : g.status === "completed" && progress < 100
-                    ? "active"
-                    : g.status,
-            }
-          : g
-      ),
-    }));
+    setState((s) => {
+      // Manual override only when goal has no linked tasks
+      const linked = s.tasks.filter((t) => t.goalId === id);
+      if (linked.length > 0) {
+        // Keep derived progress
+        return { ...s, goals: deriveGoals(s.goals, s.tasks) };
+      }
+      return {
+        ...s,
+        goals: s.goals.map((g) =>
+          g.id === id
+            ? {
+                ...g,
+                progress: Math.min(100, Math.max(0, progress)),
+                status:
+                  progress >= 100
+                    ? "completed"
+                    : g.status === "completed" && progress < 100
+                      ? "active"
+                      : g.status,
+              }
+            : g
+        ),
+      };
+    });
   }, []);
 
   const deleteGoal = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      goals: s.goals.filter((g) => g.id !== id),
-      tasks: s.tasks.map((t) =>
+    setState((s) => {
+      const tasks = s.tasks.map((t) =>
         t.goalId === id ? { ...t, goalId: undefined } : t
-      ),
-    }));
+      );
+      return {
+        ...s,
+        goals: s.goals.filter((g) => g.id !== id),
+        tasks,
+        goals_keep: undefined,
+        agents: deriveAgents(s.agents, tasks),
+      };
+    });
   }, []);
 
   const updateCompany = useCallback((updates: Partial<Company>) => {
@@ -434,7 +584,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         {
           id: uid("act"),
           type: "message" as const,
-          message: "All agent budgets reset to $0 spent",
+          message: "All budgets reset to $0 spent",
           timestamp: new Date().toISOString(),
         },
         ...s.activities,
@@ -442,137 +592,91 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const simulateTick = useCallback(() => {
+  /** Deterministic work step for assigned tasks only */
+  const processWork = useCallback(() => {
     setState((s) => {
-      let agents = s.agents.map((a) => ({ ...a }));
       let tasks = s.tasks.map((t) => ({ ...t }));
-      let goals = s.goals.map((g) => ({ ...g }));
+      let agents = s.agents.map((a) => ({ ...a }));
       const activities = [...s.activities];
+      let moved = false;
 
-      agents = agents.map((a) => {
-        if (a.status === "working") {
-          const spend = +(Math.random() * 3.2 + 0.4).toFixed(2);
-          return {
-            ...a,
-            budgetSpent: Math.min(
-              a.budgetMonthly,
-              +(a.budgetSpent + spend).toFixed(2)
-            ),
-            lastHeartbeat: new Date().toISOString(),
-          };
-        }
-        return a;
-      });
-
-      if (agents.length > 0 && Math.random() > 0.48) {
-        const idx = Math.floor(Math.random() * agents.length);
-        const options: AgentStatus[] = ["idle", "working", "paused"];
-        const newStatus = options[Math.floor(Math.random() * options.length)];
-        if (agents[idx].status !== newStatus) {
-          const prev = agents[idx].status;
-          agents[idx] = {
-            ...agents[idx],
-            status: newStatus,
-            lastHeartbeat: new Date().toISOString(),
-            currentTask:
-              newStatus === "idle" || newStatus === "paused"
-                ? undefined
-                : agents[idx].currentTask,
-          };
-          activities.unshift({
-            id: uid("act"),
-            type: "heartbeat",
-            agentId: agents[idx].id,
-            message: `${agents[idx].name} changed from ${prev} → ${newStatus}`,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
-
-      const movable = tasks.filter(
-        (t) =>
-          t.status === "todo" ||
-          t.status === "in_progress" ||
-          t.status === "review"
-      );
-      if (movable.length > 0 && Math.random() > 0.38) {
-        const t = movable[Math.floor(Math.random() * movable.length)];
+      // Prefer advancing in_progress → review → done, then todo → in_progress
+      const order: Task["status"][] = ["in_progress", "review", "todo"];
+      for (const st of order) {
+        const candidates = tasks.filter(
+          (t) => t.status === st && t.assigneeId
+        );
+        if (candidates.length === 0) continue;
+        const t = candidates[0];
         const nextMap: Partial<Record<Task["status"], Task["status"]>> = {
           todo: "in_progress",
           in_progress: "review",
           review: "done",
         };
         const next = nextMap[t.status];
-        if (next) {
-          tasks = tasks.map((tt) =>
-            tt.id === t.id
-              ? { ...tt, status: next, updatedAt: new Date().toISOString() }
-              : tt
-          );
-          const agent = agents.find((a) => a.id === t.assigneeId);
-          const activityType: Activity["type"] =
-            next === "done" ? "task_completed" : "task_started";
-          activities.unshift({
-            id: uid("act"),
-            type: activityType,
-            agentId: t.assigneeId,
-            message: `${agent?.name || "System"} moved '${t.title}' to ${next.replace(/_/g, " ")}`,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
+        if (!next) continue;
 
-      if (Math.random() > 0.52) {
-        const active = goals.filter(
-          (g) => g.status === "active" && g.progress < 100
+        tasks = tasks.map((tt) =>
+          tt.id === t.id
+            ? { ...tt, status: next, updatedAt: new Date().toISOString() }
+            : tt
         );
-        if (active.length > 0) {
-          const g = active[Math.floor(Math.random() * active.length)];
-          const inc = Math.floor(Math.random() * 5) + 1;
-          const newProg = Math.min(100, g.progress + inc);
-          goals = goals.map((gg) =>
-            gg.id === g.id
-              ? {
-                  ...gg,
-                  progress: newProg,
-                  status: newProg >= 100 ? "completed" : "active",
-                }
-              : gg
+        const agent = agents.find((a) => a.id === t.assigneeId);
+        if (agent && (next === "in_progress" || next === "done")) {
+          agents = agents.map((a) =>
+            a.id === agent.id
+              ? chargeBudget(a, next === "done" ? 1.25 : 0.75)
+              : a
           );
-          activities.unshift({
-            id: uid("act"),
-            type: "goal_update",
-            message: `Progress on '${g.title}' → ${newProg}%`,
-            timestamp: new Date().toISOString(),
-          });
         }
+        activities.unshift({
+          id: uid("act"),
+          type: next === "done" ? "task_completed" : "task_started",
+          agentId: t.assigneeId,
+          message: `${agent?.name || "Agent"} advanced “${t.title}” → ${next.replace(/_/g, " ")}`,
+          timestamp: new Date().toISOString(),
+        });
+        moved = true;
+        break;
       }
 
-      agents.forEach((a) => {
-        const pct = a.budgetMonthly > 0 ? a.budgetSpent / a.budgetMonthly : 0;
-        if (pct >= 0.85 && Math.random() > 0.72) {
-          activities.unshift({
-            id: uid("act"),
-            type: "budget_alert",
-            agentId: a.id,
-            message: `${a.name} has used ${Math.round(pct * 100)}% of monthly budget ($${a.budgetSpent.toFixed(0)} / $${a.budgetMonthly})`,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      });
+      if (!moved) {
+        activities.unshift({
+          id: uid("act"),
+          type: "message",
+          message:
+            "No assigned work to advance. Assign a task, then move it to To Do.",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      agents = deriveAgents(agents, tasks);
+      const goals = deriveGoals(s.goals, tasks);
 
       return {
         ...s,
-        agents,
         tasks,
+        agents,
         goals,
         activities: activities.slice(0, 100),
       };
     });
   }, []);
 
-  const resetData = useCallback(() => {
-    const next = cloneDefaultState();
+  const clearCompany = useCallback(() => {
+    const next = emptyState();
+    setState(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  const loadSampleData = useCallback(() => {
+    const next = sampleState();
     setState(next);
     if (typeof window !== "undefined") {
       try {
@@ -585,7 +689,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const importState = useCallback((data: unknown) => {
     if (!isValidState(data)) return false;
-    setState(data);
+    setState({
+      ...data,
+      agents: deriveAgents(data.agents, data.tasks),
+      goals: deriveGoals(data.goals, data.tasks),
+    });
     return true;
   }, []);
 
@@ -611,8 +719,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addActivity,
         clearActivities,
         resetBudgets,
-        simulateTick,
-        resetData,
+        processWork,
+        clearCompany,
+        loadSampleData,
         importState,
         exportState,
       }}
