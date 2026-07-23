@@ -29,10 +29,10 @@ export default function ActivityFeed({ limit = 8 }: { limit?: number }) {
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
-        <p className="text-3xl mb-2 opacity-40">📡</p>
+        <p className="mb-2 text-3xl opacity-40">📡</p>
         <p className="text-sm text-muted">No activity yet</p>
         <p className="mt-1 text-xs text-muted">
-          Try the Simulate Tick button!
+          Hire agents, create tasks, or press W to process work
         </p>
       </div>
     );
@@ -40,7 +40,6 @@ export default function ActivityFeed({ limit = 8 }: { limit?: number }) {
 
   return (
     <div className="relative space-y-0">
-      {/* Vertical timeline line */}
       <div className="absolute bottom-3 left-[21px] top-3 w-px bg-border" />
 
       {items.map((act, idx) => {
