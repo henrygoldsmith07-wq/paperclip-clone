@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Header from "@/components/Header";
 import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
@@ -10,7 +11,7 @@ function AgentNode({
   children,
 }: {
   agent: Agent;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }) {
   const statusColor =
     agent.status === "working"
@@ -39,12 +40,14 @@ function AgentNode({
           ? "ring-danger/30"
           : "ring-zinc-600/30";
 
+  const hasChildren =
+    children != null && !(Array.isArray(children) && children.length === 0);
+
   return (
     <div className="flex flex-col items-center">
       <div
         className={`group relative flex w-40 sm:w-44 flex-col items-center rounded-xl border-2 p-4 shadow-sm transition-all hover:scale-[1.03] hover:shadow-lg hover:shadow-black/20 ${statusColor}`}
       >
-        {/* Status indicator */}
         <span
           className={`absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-background ${statusDot} ${
             agent.status === "working" ? "animate-pulse-dot" : ""
@@ -52,14 +55,13 @@ function AgentNode({
           title={agent.status}
         />
 
-        {/* Avatar with status ring */}
         <div
           className={`flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800 text-2xl ring-2 ${ringColor}`}
         >
           {agent.avatar}
         </div>
 
-        <div className="mt-2.5 text-sm font-semibold text-center leading-tight">
+        <div className="mt-2.5 text-center text-sm font-semibold leading-tight">
           {agent.name}
         </div>
         <div className="mt-0.5 text-[11px] font-medium text-muted">
@@ -69,15 +71,13 @@ function AgentNode({
           {agent.model}
         </div>
 
-        {/* Budget tooltip on hover */}
         <div className="pointer-events-none absolute -bottom-9 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-zinc-900 px-2.5 py-1 text-[10px] text-muted opacity-0 shadow-lg transition-opacity group-hover:block group-hover:opacity-100">
           ${agent.budgetSpent.toFixed(0)} / ${agent.budgetMonthly} spent
         </div>
       </div>
 
-      {children && (
+      {hasChildren && (
         <>
-          {/* Vertical connector */}
           <div className="h-6 w-px bg-gradient-to-b from-border to-border/40" />
           <div className="flex flex-wrap justify-center gap-5 sm:gap-8">
             {children}
@@ -111,10 +111,14 @@ export default function OrgPage() {
   }
 
   const ceo = agents.find((a) => a.role === "CEO") || agents[0];
+  // Never include the root node as its own report
   const directReports = agents.filter(
-    (a) => a.reportsTo === ceo?.id || (a.role !== "CEO" && !a.reportsTo)
+    (a) =>
+      a.id !== ceo?.id &&
+      (a.reportsTo === ceo?.id || (!a.reportsTo && a.role !== "CEO"))
   );
-  const getReports = (id: string) => agents.filter((a) => a.reportsTo === id);
+  const getReports = (id: string) =>
+    agents.filter((a) => a.reportsTo === id && a.id !== id);
 
   return (
     <>
@@ -125,7 +129,7 @@ export default function OrgPage() {
       <div className="flex-1 overflow-auto p-6 pt-16 lg:p-8 lg:pt-8">
         {agents.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/50 py-20 text-center">
-            <p className="text-4xl mb-3 opacity-60">🏢</p>
+            <p className="mb-3 text-4xl opacity-60">🏢</p>
             <p className="font-medium text-muted">No agents yet</p>
             <p className="mt-1 text-sm text-muted">
               Hire some from the Agents page to build your org chart
@@ -138,21 +142,11 @@ export default function OrgPage() {
                 {directReports.map((report) => {
                   const subReports = getReports(report.id);
                   return (
-                    <div key={report.id} className="flex flex-col items-center">
-                      <div className="h-6 w-px bg-gradient-to-b from-border to-border/40" />
-                      <AgentNode agent={report}>
-                        {subReports.length > 0 &&
-                          subReports.map((sub) => (
-                            <div
-                              key={sub.id}
-                              className="flex flex-col items-center"
-                            >
-                              <div className="h-6 w-px bg-gradient-to-b from-border to-border/40" />
-                              <AgentNode agent={sub} />
-                            </div>
-                          ))}
-                      </AgentNode>
-                    </div>
+                    <AgentNode key={report.id} agent={report}>
+                      {subReports.map((sub) => (
+                        <AgentNode key={sub.id} agent={sub} />
+                      ))}
+                    </AgentNode>
                   );
                 })}
               </AgentNode>
@@ -160,7 +154,6 @@ export default function OrgPage() {
           </div>
         )}
 
-        {/* Legend */}
         <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card/50 px-5 py-3 text-xs text-muted">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-success" />
