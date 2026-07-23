@@ -130,7 +130,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lastHeartbeat: new Date().toISOString(),
       };
       setState((s) => {
-        // Prefer an existing CEO as reportsTo target when not hiring a CEO
         const ceo = s.agents.find((a) => a.role === "CEO");
         const withReports =
           newAgent.role === "CEO"
@@ -267,6 +266,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!task) return s;
         const agent = s.agents.find((a) => a.id === task.assigneeId);
         const label = status.replace(/_/g, " ");
+        const activityType: Activity["type"] =
+          status === "done" ? "task_completed" : "task_started";
         return {
           ...s,
           tasks: s.tasks.map((t) =>
@@ -277,9 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           activities: [
             {
               id: uid("act"),
-              type: (status === "done"
-                ? "task_completed"
-                : "task_started") as const,
+              type: activityType,
               agentId: task.assigneeId,
               message: `${agent?.name || "System"} moved '${task.title}' to ${label}`,
               timestamp: new Date().toISOString(),
@@ -511,9 +510,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
               : tt
           );
           const agent = agents.find((a) => a.id === t.assigneeId);
+          const activityType: Activity["type"] =
+            next === "done" ? "task_completed" : "task_started";
           activities.unshift({
             id: uid("act"),
-            type: next === "done" ? "task_completed" : "task_started",
+            type: activityType,
             agentId: t.assigneeId,
             message: `${agent?.name || "System"} moved '${t.title}' to ${next.replace(/_/g, " ")}`,
             timestamp: new Date().toISOString(),
