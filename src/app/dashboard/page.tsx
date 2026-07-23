@@ -14,8 +14,8 @@ export default function DashboardPage() {
     goals,
     tasks,
     company,
-    resetData,
     clearActivities,
+    loadSampleData,
     isHydrated,
   } = useApp();
   const { toast } = useToast();
@@ -23,11 +23,14 @@ export default function DashboardPage() {
   if (!isHydrated) {
     return (
       <>
-        <Header title="Dashboard" subtitle="Loading mission control…" />
+        <Header title="Dashboard" subtitle="Loading…" />
         <DashboardSkeleton />
       </>
     );
   }
+
+  const isEmpty =
+    agents.length === 0 && goals.length === 0 && tasks.length === 0;
 
   const working = agents.filter((a) => a.status === "working").length;
   const totalBudget = agents.reduce((s, a) => s + a.budgetMonthly, 0);
@@ -48,30 +51,67 @@ export default function DashboardPage() {
     .filter((a) => a.pct >= 0.7)
     .sort((a, b) => b.pct - a.pct);
 
+  if (isEmpty) {
+    return (
+      <>
+        <Header
+          title="Dashboard"
+          subtitle={`${company.name} · Get started`}
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 pt-16 lg:pt-8">
+          <div className="max-w-lg text-center">
+            <p className="mb-3 text-5xl">📎</p>
+            <h2 className="text-xl font-semibold">Build your company</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              This is a real workspace — not a canned demo. Hire agents, set
+              goals, create tasks, and assign work. Agent status, budgets, and
+              goal progress update from what you actually do.
+            </p>
+          </div>
+          <div className="grid w-full max-w-xl gap-3 sm:grid-cols-3">
+            <Link
+              href="/dashboard/agents"
+              className="rounded-xl border border-border bg-card p-4 text-center transition-colors hover:border-accent/40"
+            >
+              <div className="text-2xl">🤖</div>
+              <div className="mt-2 text-sm font-medium">1. Hire agents</div>
+            </Link>
+            <Link
+              href="/dashboard/goals"
+              className="rounded-xl border border-border bg-card p-4 text-center transition-colors hover:border-accent/40"
+            >
+              <div className="text-2xl">🎯</div>
+              <div className="mt-2 text-sm font-medium">2. Set goals</div>
+            </Link>
+            <Link
+              href="/dashboard/tasks"
+              className="rounded-xl border border-border bg-card p-4 text-center transition-colors hover:border-accent/40"
+            >
+              <div className="text-2xl">✅</div>
+              <div className="mt-2 text-sm font-medium">3. Create tasks</div>
+            </Link>
+          </div>
+          <button
+            onClick={() => {
+              loadSampleData();
+              toast("Sample company loaded", "info");
+            }}
+            className="text-xs text-muted hover:text-foreground hover:underline"
+          >
+            Or load sample data to explore
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <Header
         title="Dashboard"
-        subtitle={`${company.name} · Mission control for your AI team`}
+        subtitle={`${company.name} · Mission control`}
       />
       <div className="flex-1 space-y-6 p-6 pt-16 lg:pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            Live overview of your autonomous company
-          </p>
-          <button
-            onClick={() => {
-              if (confirm("Reset all data to the original demo company?")) {
-                resetData();
-                toast("Demo data reset", "warning");
-              }
-            }}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-card-hover hover:text-foreground"
-          >
-            Reset Demo
-          </button>
-        </div>
-
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Active Agents"
@@ -181,7 +221,7 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 {goals.filter((g) => g.status === "active").length === 0 && (
-                  <p className="text-sm text-muted">No active goals</p>
+                  <p className="text-sm text-muted">No active goals yet</p>
                 )}
               </div>
             </div>
@@ -190,7 +230,7 @@ export default function DashboardPage() {
           <div className="rounded-xl border border-border bg-card lg:col-span-2">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <h2 className="text-sm font-semibold text-foreground">
-                Live Activity
+                Activity
               </h2>
               <button
                 onClick={() => {
