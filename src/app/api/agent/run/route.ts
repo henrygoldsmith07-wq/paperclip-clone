@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
+type Provider =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "xai"
+  | "deepseek"
+  | "groq"
+  | "openrouter";
+
 type Body = {
-  provider: "openai" | "anthropic";
+  provider: Provider;
   apiKey: string;
   model: string;
   agentName: string;
@@ -13,6 +22,58 @@ type Body = {
   taskDescription?: string;
   taskPriority?: string;
 };
+
+const SUPPORTED: Provider[] = [
+  "openai",
+  "anthropic",
+  "google",
+  "xai",
+  "deepseek",
+  "groq",
+  "openrouter",
+];
+
+async function openaiCompatible(
+  url: string,
+  apiKey: string,
+  model: string,
+  system: string,
+  user: string,
+  extraHeaders?: Record<string, string>
+) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.4,
+      max_tokens: 600,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg =
+      data?.error?.message || data?.error || res.statusText || "API error";
+    return { error: String(msg), status: res.status };
+  }
+  const output =
+    data?.choices?.[0]?.message?.content?.trim() || "(empty response)";
+  const usage = data?.usage
+    ? {
+        inputTokens: data.usage.prompt_tokens as number,
+        outputTokens: data.usage.completion_tokens as number,
+      }
+    : undefined;
+  return { output, usage };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,8 +88,11 @@ export async function POST(req: NextRequest) {
     if (!body.taskTitle?.trim()) {
       return NextResponse.json({ error: "Missing task title" }, { status: 400 });
     }
-    if (body.provider !== "openai" && body.provider !== "anthropic") {
-      return NextResponse.json({ error: "Unsupported provider" }, { status: 400 });
+    if (!SUPPORTED.includes(body.provider)) {
+      return NextResponse.json(
+        { error: `Unsupported provider: ${body.provider}` },
+        { status: 400 }
+      );
     }
 
     const system = [
@@ -52,83 +116,126 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join("\n");
 
-    if (body.provider === "openai") {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const key = body.apiKey.trim();
+    const model = body.model;
+
+    // —— Anthropic ——
+    if (body.provider === "anthropic") {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${body.apiKey.trim()}`,
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: body.model,
-          temperature: 0.4,
+          model,
           max_tokens: 600,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
+          temperature: 0.4,
+          system,
+          messages: [{ role: "user", content: user }],
         }),
       });
-
       const data = await res.json();
       if (!res.ok) {
         const msg =
-          data?.error?.message || data?.error || res.statusText || "OpenAI error";
-        return NextResponse.json(
-          { error: String(msg) },
-          { status: res.status }
-        );
+          data?.error?.message ||
+          data?.error ||
+          res.statusText ||
+          "Anthropic error";
+        return NextResponse.json({ error: String(msg) }, { status: res.status });
       }
-
+      const textBlock = Array.isArray(data?.content)
+        ? data.content.find((c: { type?: string }) => c.type === "text")
+        : null;
       const output =
-        data?.choices?.[0]?.message?.content?.trim() || "(empty response)";
+        (textBlock?.text as string | undefined)?.trim() || "(empty response)";
       const usage = data?.usage
         ? {
-            inputTokens: data.usage.prompt_tokens as number,
-            outputTokens: data.usage.completion_tokens as number,
+            inputTokens: data.usage.input_tokens as number,
+            outputTokens: data.usage.output_tokens as number,
           }
         : undefined;
-
-      return NextResponse.json({ output, usage, provider: "openai" });
+      return NextResponse.json({ output, usage, provider: "anthropic" });
     }
 
-    // Anthropic
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": body.apiKey.trim(),
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
+    // —— Google Gemini ——
+    if (body.provider === "google") {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: 600 },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg =
+          data?.error?.message || data?.error || res.statusText || "Google error";
+        return NextResponse.json({ error: String(msg) }, { status: res.status });
+      }
+      const parts = data?.candidates?.[0]?.content?.parts;
+      const output =
+        Array.isArray(parts)
+          ? parts
+              .map((p: { text?: string }) => p.text || "")
+              .join("")
+              .trim() || "(empty response)"
+          : "(empty response)";
+      const usage = data?.usageMetadata
+        ? {
+            inputTokens: data.usageMetadata.promptTokenCount as number,
+            outputTokens: data.usageMetadata.candidatesTokenCount as number,
+          }
+        : undefined;
+      return NextResponse.json({ output, usage, provider: "google" });
+    }
+
+    // —— OpenAI-compatible providers ——
+    const endpoints: Record<
+      Exclude<Provider, "anthropic" | "google">,
+      { url: string; headers?: Record<string, string> }
+    > = {
+      openai: { url: "https://api.openai.com/v1/chat/completions" },
+      xai: { url: "https://api.x.ai/v1/chat/completions" },
+      deepseek: { url: "https://api.deepseek.com/chat/completions" },
+      groq: { url: "https://api.groq.com/openai/v1/chat/completions" },
+      openrouter: {
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        headers: {
+          "HTTP-Referer": "https://paperclip-clone.vercel.app",
+          "X-Title": "Paperclip Clone",
+        },
       },
-      body: JSON.stringify({
-        model: body.model,
-        max_tokens: 600,
-        temperature: 0.4,
-        system,
-        messages: [{ role: "user", content: user }],
-      }),
-    });
+    };
 
-    const data = await res.json();
-    if (!res.ok) {
-      const msg =
-        data?.error?.message || data?.error || res.statusText || "Anthropic error";
-      return NextResponse.json({ error: String(msg) }, { status: res.status });
+    const ep = endpoints[body.provider as keyof typeof endpoints];
+    if (!ep) {
+      return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
     }
 
-    const textBlock = Array.isArray(data?.content)
-      ? data.content.find((c: { type?: string }) => c.type === "text")
-      : null;
-    const output =
-      (textBlock?.text as string | undefined)?.trim() || "(empty response)";
-    const usage = data?.usage
-      ? {
-          inputTokens: data.usage.input_tokens as number,
-          outputTokens: data.usage.output_tokens as number,
-        }
-      : undefined;
-
-    return NextResponse.json({ output, usage, provider: "anthropic" });
+    const result = await openaiCompatible(
+      ep.url,
+      key,
+      model,
+      system,
+      user,
+      ep.headers
+    );
+    if ("error" in result && result.error) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status || 500 }
+      );
+    }
+    return NextResponse.json({
+      output: result.output,
+      usage: result.usage,
+      provider: body.provider,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
