@@ -53,7 +53,6 @@ interface AppContextType extends AppState {
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   clearActivities: () => void;
   resetBudgets: () => void;
-  /** Advance assigned work one step (todo→in_progress→review→done) */
   processWork: () => void;
   clearCompany: () => void;
   loadSampleData: () => void;
@@ -63,7 +62,6 @@ interface AppContextType extends AppState {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-/** Bumped so old demo localStorage is not reused */
 const STORAGE_KEY = "paperclip-clone-state-v5";
 
 function uid(prefix: string) {
@@ -119,7 +117,6 @@ function loadState(): AppState {
   return emptyState();
 }
 
-/** Goal progress = % of linked tasks done (when any tasks are linked) */
 function deriveGoals(goals: Goal[], tasks: Task[]): Goal[] {
   return goals.map((g) => {
     const linked = tasks.filter((t) => t.goalId === g.id);
@@ -139,7 +136,6 @@ function deriveGoals(goals: Goal[], tasks: Task[]): Goal[] {
   });
 }
 
-/** Agent working state follows real assigned in-progress / review tasks */
 function deriveAgents(agents: Agent[], tasks: Task[]): Agent[] {
   return agents.map((a) => {
     if (a.status === "paused" || a.status === "error") {
@@ -156,16 +152,6 @@ function deriveAgents(agents: Agent[], tasks: Task[]): Agent[] {
         status: "working" as const,
         currentTask: active.title,
         lastHeartbeat: new Date().toISOString(),
-      };
-    }
-    const queued = tasks.find(
-      (t) => t.assigneeId === a.id && t.status === "todo"
-    );
-    if (queued) {
-      return {
-        ...a,
-        status: a.status === "working" ? "idle" : a.status,
-        currentTask: undefined,
       };
     }
     if (a.status === "working") {
@@ -286,7 +272,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           : a
       );
-      // Re-sync from tasks unless explicitly paused/error
       if (status !== "paused" && status !== "error") {
         agents = deriveAgents(agents, s.tasks);
       }
@@ -374,7 +359,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : t
         );
 
-        // Charge budget when work actually starts or completes
         let agents = s.agents;
         if (agent && (status === "in_progress" || status === "done")) {
           const cost = status === "done" ? 1.25 : 0.75;
@@ -507,10 +491,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateGoalProgress = useCallback((id: string, progress: number) => {
     setState((s) => {
-      // Manual override only when goal has no linked tasks
       const linked = s.tasks.filter((t) => t.goalId === id);
       if (linked.length > 0) {
-        // Keep derived progress
         return { ...s, goals: deriveGoals(s.goals, s.tasks) };
       }
       return {
@@ -542,7 +524,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...s,
         goals: s.goals.filter((g) => g.id !== id),
         tasks,
-        goals_keep: undefined,
         agents: deriveAgents(s.agents, tasks),
       };
     });
@@ -592,7 +573,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  /** Deterministic work step for assigned tasks only */
   const processWork = useCallback(() => {
     setState((s) => {
       let tasks = s.tasks.map((t) => ({ ...t }));
@@ -600,7 +580,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const activities = [...s.activities];
       let moved = false;
 
-      // Prefer advancing in_progress → review → done, then todo → in_progress
       const order: Task["status"][] = ["in_progress", "review", "todo"];
       for (const st of order) {
         const candidates = tasks.filter(
