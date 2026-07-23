@@ -29,6 +29,7 @@ import {
   resolveApiModel,
   resolveProvider,
   keyForProvider,
+  providerLabel,
 } from "@/lib/llm";
 
 interface AppState {
@@ -188,7 +189,6 @@ function chargeBudget(agent: Agent, amount: number): Agent {
 function estimateCostUsd(inputTokens?: number, outputTokens?: number): number {
   const inT = inputTokens || 0;
   const outT = outputTokens || 0;
-  // Rough blended estimate ~$3/M in + $15/M out
   return +((inT * 3 + outT * 15) / 1_000_000).toFixed(4);
 }
 
@@ -623,7 +623,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (task) break;
     }
 
-    // review → done does not need an LLM call
     if (!task) {
       const review = s.tasks.find((t) => t.status === "review" && t.assigneeId);
       if (review) {
@@ -681,7 +680,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (provider === "unsupported") {
       return {
         ok: false,
-        message: `${agent.name} uses model “${agent.model}” which is not supported. Switch to Claude or GPT in Agents.`,
+        message: `${agent.name} uses model “${agent.model}” which is not supported. Pick a model from the hire list.`,
       };
     }
 
@@ -690,14 +689,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!apiKey) {
       return {
         ok: false,
-        message: `Add your ${provider === "openai" ? "OpenAI" : "Anthropic"} API key in Settings to run ${agent.name}.`,
+        message: `Add your ${providerLabel(provider)} API key in Settings to run ${agent.name}.`,
       };
     }
 
     processingRef.current = true;
     setIsProcessing(true);
 
-    // Mark in progress while calling
     setState((prev) => {
       const tasks = prev.tasks.map((t) =>
         t.id === task!.id
@@ -751,7 +749,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ...prev,
           agents: prev.agents.map((a) =>
             a.id === agent.id
-              ? { ...a, status: "error" as const, lastHeartbeat: new Date().toISOString() }
+              ? {
+                  ...a,
+                  status: "error" as const,
+                  lastHeartbeat: new Date().toISOString(),
+                }
               : a
           ),
           activities: [
