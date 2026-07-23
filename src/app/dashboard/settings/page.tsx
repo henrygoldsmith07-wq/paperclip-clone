@@ -5,7 +5,57 @@ import Header from "@/components/Header";
 import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
-import { loadApiKeys, saveApiKeys } from "@/lib/llm";
+import { loadApiKeys, saveApiKeys, type ApiKeys } from "@/lib/llm";
+
+const KEY_FIELDS: {
+  key: keyof ApiKeys;
+  label: string;
+  hint: string;
+  placeholder: string;
+}[] = [
+  {
+    key: "openai",
+    label: "OpenAI",
+    hint: "GPT-4.1, GPT-4o, o3/o4",
+    placeholder: "sk-…",
+  },
+  {
+    key: "anthropic",
+    label: "Anthropic",
+    hint: "Claude Opus / Sonnet / Haiku",
+    placeholder: "sk-ant-…",
+  },
+  {
+    key: "google",
+    label: "Google AI",
+    hint: "Gemini 2.5 / 2.0 (free tier available)",
+    placeholder: "AIza…",
+  },
+  {
+    key: "xai",
+    label: "xAI",
+    hint: "Grok 3 / Grok 2",
+    placeholder: "xai-…",
+  },
+  {
+    key: "deepseek",
+    label: "DeepSeek",
+    hint: "DeepSeek Chat / Reasoner",
+    placeholder: "sk-…",
+  },
+  {
+    key: "groq",
+    label: "Groq",
+    hint: "Llama / Gemma / Qwen — free tier",
+    placeholder: "gsk_…",
+  },
+  {
+    key: "openrouter",
+    label: "OpenRouter",
+    hint: "Many free open models",
+    placeholder: "sk-or-…",
+  },
+];
 
 export default function SettingsPage() {
   const {
@@ -26,8 +76,7 @@ export default function SettingsPage() {
   const [mission, setMission] = useState(company.mission);
   const [saved, setSaved] = useState(false);
   const [autoProcess, setAutoProcess] = useState(false);
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [anthropicKey, setAnthropicKey] = useState("");
+  const [keys, setKeys] = useState<ApiKeys>({});
   const [keysSaved, setKeysSaved] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -38,9 +87,7 @@ export default function SettingsPage() {
   }, [company.name, company.mission]);
 
   useEffect(() => {
-    const keys = loadApiKeys();
-    setOpenaiKey(keys.openai || "");
-    setAnthropicKey(keys.anthropic || "");
+    setKeys(loadApiKeys());
   }, []);
 
   useEffect(() => {
@@ -81,10 +128,7 @@ export default function SettingsPage() {
   };
 
   const handleSaveKeys = () => {
-    saveApiKeys({
-      openai: openaiKey.trim() || undefined,
-      anthropic: anthropicKey.trim() || undefined,
-    });
+    saveApiKeys(keys);
     setKeysSaved(true);
     toast("API keys saved on this device", "success");
     setTimeout(() => setKeysSaved(false), 2000);
@@ -131,41 +175,34 @@ export default function SettingsPage() {
             API Keys
           </h2>
           <p className="mb-4 text-xs text-muted">
-            Required for agents to actually run. Keys are stored only in{" "}
-            <strong>your browser</strong> (localStorage) and sent to your own
-            app when an agent works — not exported with company JSON.
+            Add keys for the models you want to use. Free options:{" "}
+            <strong>Groq</strong>, <strong>OpenRouter</strong>, and Google’s free
+            Gemini tier. Keys stay in your browser only.
           </p>
 
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted">
-                OpenAI API key{" "}
-                <span className="text-muted/70">(for gpt-* models)</span>
-              </label>
-              <input
-                type="password"
-                autoComplete="off"
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                placeholder="sk-…"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted">
-                Anthropic API key{" "}
-                <span className="text-muted/70">(for claude-* models)</span>
-              </label>
-              <input
-                type="password"
-                autoComplete="off"
-                value={anthropicKey}
-                onChange={(e) => setAnthropicKey(e.target.value)}
-                placeholder="sk-ant-…"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
-              />
-            </div>
-            <div className="flex items-center gap-3">
+          <div className="space-y-3">
+            {KEY_FIELDS.map((field) => (
+              <div key={field.key}>
+                <label className="mb-1.5 block text-xs font-medium text-muted">
+                  {field.label}{" "}
+                  <span className="text-muted/70">({field.hint})</span>
+                </label>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={keys[field.key] || ""}
+                  onChange={(e) =>
+                    setKeys((prev) => ({
+                      ...prev,
+                      [field.key]: e.target.value,
+                    }))
+                  }
+                  placeholder={field.placeholder}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
+                />
+              </div>
+            ))}
+            <div className="flex items-center gap-3 pt-1">
               <button
                 onClick={handleSaveKeys}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
@@ -179,9 +216,9 @@ export default function SettingsPage() {
               )}
             </div>
             <p className="text-[11px] text-muted">
-              Hire agents with Claude or GPT models, assign a task, then press{" "}
-              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">W</kbd>{" "}
-              or <strong>Process Work</strong>.
+              Tip: start free with a Groq or OpenRouter key, hire an agent on a
+              free model, assign a task, press{" "}
+              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono">W</kbd>.
             </p>
           </div>
         </section>
@@ -239,8 +276,8 @@ export default function SettingsPage() {
             Work Queue
           </h2>
           <p className="mb-4 text-xs text-muted">
-            Auto-run assigned agents every 12 seconds (uses API keys + real model
-            calls). {isProcessing ? "Agent currently running…" : ""}
+            Auto-run assigned agents every 12 seconds.{" "}
+            {isProcessing ? "Agent currently running…" : ""}
           </p>
           <label className="flex cursor-pointer items-center gap-3">
             <div className="relative">
@@ -264,8 +301,7 @@ export default function SettingsPage() {
             Export / Import
           </h2>
           <p className="mb-4 text-xs text-muted">
-            Save company state as JSON (agents, tasks, goals). API keys are never
-            included.
+            Company state only — API keys are never exported.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
