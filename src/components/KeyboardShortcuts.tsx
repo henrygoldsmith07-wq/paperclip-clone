@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 
 export default function KeyboardShortcuts() {
   const router = useRouter();
-  const { processWork } = useApp();
+  const { processWork, isProcessing } = useApp();
   const { toast } = useToast();
   const gPressed = useRef(false);
   const gTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -33,8 +33,13 @@ export default function KeyboardShortcuts() {
         !gPressed.current
       ) {
         e.preventDefault();
-        processWork();
-        toast("Work queue advanced", "success");
+        if (isProcessing) {
+          toast("Agent already running…", "info");
+          return;
+        }
+        void processWork().then((result) => {
+          toast(result.message, result.ok ? "success" : "warning");
+        });
         return;
       }
 
@@ -79,7 +84,7 @@ export default function KeyboardShortcuts() {
       window.removeEventListener("keydown", handler);
       if (gTimeout.current) clearTimeout(gTimeout.current);
     };
-  }, [router, processWork, toast]);
+  }, [router, processWork, isProcessing, toast]);
 
   return null;
 }
