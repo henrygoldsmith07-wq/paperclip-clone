@@ -10,13 +10,13 @@ export default function Header({
   title: string;
   subtitle?: string;
 }) {
-  const { company, agents, isHydrated, processWork } = useApp();
+  const { company, agents, isHydrated, isProcessing, processWork } = useApp();
   const { toast } = useToast();
   const activeCount = agents.filter((a) => a.status === "working").length;
 
-  const handleProcess = () => {
-    processWork();
-    toast("Work queue advanced", "success");
+  const handleProcess = async () => {
+    const result = await processWork();
+    toast(result.message, result.ok ? "success" : "warning");
   };
 
   return (
@@ -35,10 +35,20 @@ export default function Header({
           <>
             <button
               onClick={handleProcess}
-              className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm hover:border-accent/40 hover:bg-card-hover"
-              title="Advance assigned work one step (W)"
+              disabled={isProcessing}
+              className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm hover:border-accent/40 hover:bg-card-hover disabled:cursor-wait disabled:opacity-60"
+              title="Run assigned agent on next task (W)"
             >
-              ▶ <span className="hidden sm:inline">Process Work</span>
+              {isProcessing ? (
+                <>
+                  <span className="inline-block animate-pulse">⏳</span>{" "}
+                  <span className="hidden sm:inline">Running…</span>
+                </>
+              ) : (
+                <>
+                  ▶ <span className="hidden sm:inline">Process Work</span>
+                </>
+              )}
             </button>
 
             <div className="hidden items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs shadow-sm sm:flex">
