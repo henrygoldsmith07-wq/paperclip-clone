@@ -4,7 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useRef,
   useState,
   ReactNode,
 } from "react";
@@ -23,22 +23,26 @@ const ToastContext = createContext<ToastContextType | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
+  const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  const dismiss = useCallback((id: number) => {
+    setItems((prev) => prev.filter((t) => t.id !== id));
+    const t = timers.current.get(id);
+    if (t) {
+      clearTimeout(t);
+      timers.current.delete(id);
+    }
+  }, []);
 
   const toast = useCallback(
     (message: string, type: ToastItem["type"] = "info") => {
       const id = Date.now() + Math.random();
-      setItems((prev) => [...prev, { id, message, type }]);
+      setItems((prev) => [...prev, { id, message, type }].slice(-5));
+      const timer = setTimeout(() => dismiss(id), 2800);
+      timers.current.set(id, timer);
     },
-    []
+    [dismiss]
   );
-
-  useEffect(() => {
-    if (items.length === 0) return;
-    const timer = setTimeout(() => {
-      setItems((prev) => prev.slice(1));
-    }, 2800);
-    return () => clearTimeout(timer);
-  }, [items]);
 
   return (
     <ToastContext.Provider value={{ toast }}>
