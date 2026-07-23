@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import {
@@ -23,6 +24,12 @@ import {
   initialTasks,
   initialActivities,
 } from "@/lib/data";
+import {
+  loadApiKeys,
+  resolveApiModel,
+  resolveProvider,
+  keyForProvider,
+} from "@/lib/llm";
 
 interface AppState {
   company: Company;
@@ -32,8 +39,14 @@ interface AppState {
   activities: Activity[];
 }
 
+export type ProcessWorkResult = {
+  ok: boolean;
+  message: string;
+};
+
 interface AppContextType extends AppState {
   isHydrated: boolean;
+  isProcessing: boolean;
   hireAgent: (agent: Omit<Agent, "id" | "lastHeartbeat" | "budgetSpent">) => void;
   deleteAgent: (id: string) => void;
   updateAgentStatus: (id: string, status: AgentStatus) => void;
@@ -53,7 +66,7 @@ interface AppContextType extends AppState {
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   clearActivities: () => void;
   resetBudgets: () => void;
-  processWork: () => void;
+  processWork: () => Promise<ProcessWorkResult>;
   clearCompany: () => void;
   loadSampleData: () => void;
   importState: (data: unknown) => boolean;
@@ -172,9 +185,23 @@ function chargeBudget(agent: Agent, amount: number): Agent {
   };
 }
 
+function estimateCostUsd(inputTokens?: number, outputTokens?: number): number {
+  const inT = inputTokens || 0;
+  const outT = outputTokens || 0;
+  // Rough blended estimate ~$3/M in + $15/M out
+  return +((inT * 3 + outT * 15) / 1_000_000).toFixed(4);
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(emptyState);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const stateRef = useRef(state);
+  const processingRef = useRef(false);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     setState(loadState());
@@ -573,73 +600,241 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const processWork = useCallback(() => {
-    setState((s) => {
-      let tasks = s.tasks.map((t) => ({ ...t }));
-      let agents = s.agents.map((a) => ({ ...a }));
-      const activities = [...s.activities];
-      let moved = false;
+  const processWork = useCallback(async (): Promise<ProcessWorkResult> => {
+    if (processingRef.current) {
+      return { ok: false, message: "Already running an agent" };
+    }
 
-      const order: Task["status"][] = ["in_progress", "review", "todo"];
-      for (const st of order) {
-        const candidates = tasks.filter(
-          (t) => t.status === st && t.assigneeId
-        );
-        if (candidates.length === 0) continue;
-        const t = candidates[0];
-        const nextMap: Partial<Record<Task["status"], Task["status"]>> = {
-          todo: "in_progress",
-          in_progress: "review",
-          review: "done",
-        };
-        const next = nextMap[t.status];
-        if (!next) continue;
+    const s = stateRef.current;
+    const order: Task["status"][] = ["in_progress", "todo"];
+    let task: Task | undefined;
+    for (const st of order) {
+      task = s.tasks.find(
+        (t) =>
+          t.status === st &&
+          t.assigneeId &&
+          s.agents.some(
+            (a) =>
+              a.id === t.assigneeId &&
+              a.status !== "paused" &&
+              a.status !== "error"
+          )
+      );
+      if (task) break;
+    }
 
-        tasks = tasks.map((tt) =>
-          tt.id === t.id
-            ? { ...tt, status: next, updatedAt: new Date().toISOString() }
-            : tt
-        );
-        const agent = agents.find((a) => a.id === t.assigneeId);
-        if (agent && (next === "in_progress" || next === "done")) {
-          agents = agents.map((a) =>
-            a.id === agent.id
-              ? chargeBudget(a, next === "done" ? 1.25 : 0.75)
-              : a
+    // review → done does not need an LLM call
+    if (!task) {
+      const review = s.tasks.find((t) => t.status === "review" && t.assigneeId);
+      if (review) {
+        const agent = s.agents.find((a) => a.id === review.assigneeId);
+        setState((prev) => {
+          const tasks = prev.tasks.map((t) =>
+            t.id === review.id
+              ? {
+                  ...t,
+                  status: "done" as const,
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
           );
-        }
-        activities.unshift({
-          id: uid("act"),
-          type: next === "done" ? "task_completed" : "task_started",
-          agentId: t.assigneeId,
-          message: `${agent?.name || "Agent"} advanced “${t.title}” → ${next.replace(/_/g, " ")}`,
-          timestamp: new Date().toISOString(),
+          let agents = prev.agents;
+          if (agent) {
+            agents = prev.agents.map((a) =>
+              a.id === agent.id ? chargeBudget(a, 0.5) : a
+            );
+          }
+          agents = deriveAgents(agents, tasks);
+          const goals = deriveGoals(prev.goals, tasks);
+          return {
+            ...prev,
+            tasks,
+            agents,
+            goals,
+            activities: [
+              {
+                id: uid("act"),
+                type: "task_completed" as const,
+                agentId: review.assigneeId,
+                message: `${agent?.name || "Agent"} marked “${review.title}” done`,
+                timestamp: new Date().toISOString(),
+              },
+              ...prev.activities,
+            ].slice(0, 100),
+          };
         });
-        moved = true;
-        break;
+        return { ok: true, message: `Completed “${review.title}”` };
       }
-
-      if (!moved) {
-        activities.unshift({
-          id: uid("act"),
-          type: "message",
-          message:
-            "No assigned work to advance. Assign a task, then move it to To Do.",
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      agents = deriveAgents(agents, tasks);
-      const goals = deriveGoals(s.goals, tasks);
-
       return {
-        ...s,
+        ok: false,
+        message:
+          "No assigned work. Hire an agent, create a task, assign it, set status to To Do.",
+      };
+    }
+
+    const agent = s.agents.find((a) => a.id === task!.assigneeId);
+    if (!agent) {
+      return { ok: false, message: "Assigned agent not found" };
+    }
+
+    const provider = resolveProvider(agent.model);
+    if (provider === "unsupported") {
+      return {
+        ok: false,
+        message: `${agent.name} uses model “${agent.model}” which is not supported. Switch to Claude or GPT in Agents.`,
+      };
+    }
+
+    const keys = loadApiKeys();
+    const apiKey = keyForProvider(keys, provider);
+    if (!apiKey) {
+      return {
+        ok: false,
+        message: `Add your ${provider === "openai" ? "OpenAI" : "Anthropic"} API key in Settings to run ${agent.name}.`,
+      };
+    }
+
+    processingRef.current = true;
+    setIsProcessing(true);
+
+    // Mark in progress while calling
+    setState((prev) => {
+      const tasks = prev.tasks.map((t) =>
+        t.id === task!.id
+          ? {
+              ...t,
+              status: "in_progress" as const,
+              updatedAt: new Date().toISOString(),
+            }
+          : t
+      );
+      return {
+        ...prev,
         tasks,
-        agents,
-        goals,
-        activities: activities.slice(0, 100),
+        agents: deriveAgents(prev.agents, tasks),
+        activities: [
+          {
+            id: uid("act"),
+            type: "task_started" as const,
+            agentId: agent.id,
+            message: `${agent.name} is working on “${task!.title}”…`,
+            timestamp: new Date().toISOString(),
+          },
+          ...prev.activities,
+        ].slice(0, 100),
       };
     });
+
+    try {
+      const res = await fetch("/api/agent/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider,
+          apiKey,
+          model: resolveApiModel(agent.model),
+          agentName: agent.name,
+          agentRole: agent.role,
+          skills: agent.skills,
+          companyName: s.company.name,
+          companyMission: s.company.mission,
+          taskTitle: task.title,
+          taskDescription: task.description,
+          taskPriority: task.priority,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = String(data?.error || "Agent run failed");
+        setState((prev) => ({
+          ...prev,
+          agents: prev.agents.map((a) =>
+            a.id === agent.id
+              ? { ...a, status: "error" as const, lastHeartbeat: new Date().toISOString() }
+              : a
+          ),
+          activities: [
+            {
+              id: uid("act"),
+              type: "message" as const,
+              agentId: agent.id,
+              message: `${agent.name} failed: ${errMsg}`,
+              timestamp: new Date().toISOString(),
+            },
+            ...prev.activities,
+          ].slice(0, 100),
+        }));
+        return { ok: false, message: errMsg };
+      }
+
+      const output = String(data.output || "");
+      const cost = Math.max(
+        0.01,
+        estimateCostUsd(data.usage?.inputTokens, data.usage?.outputTokens)
+      );
+
+      setState((prev) => {
+        const tasks = prev.tasks.map((t) =>
+          t.id === task!.id
+            ? {
+                ...t,
+                status: "review" as const,
+                lastOutput: output,
+                updatedAt: new Date().toISOString(),
+              }
+            : t
+        );
+        let agents = prev.agents.map((a) =>
+          a.id === agent.id ? chargeBudget(a, cost) : a
+        );
+        agents = deriveAgents(agents, tasks);
+        const goals = deriveGoals(prev.goals, tasks);
+        const preview =
+          output.length > 160 ? `${output.slice(0, 160)}…` : output;
+
+        return {
+          ...prev,
+          tasks,
+          agents,
+          goals,
+          activities: [
+            {
+              id: uid("act"),
+              type: "task_completed" as const,
+              agentId: agent.id,
+              message: `${agent.name} finished “${task!.title}” → review. ${preview}`,
+              timestamp: new Date().toISOString(),
+            },
+            ...prev.activities,
+          ].slice(0, 100),
+        };
+      });
+
+      return {
+        ok: true,
+        message: `${agent.name} completed “${task.title}” (moved to Review)`,
+      };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Network error";
+      setState((prev) => ({
+        ...prev,
+        activities: [
+          {
+            id: uid("act"),
+            type: "message" as const,
+            agentId: agent.id,
+            message: `${agent.name} error: ${errMsg}`,
+            timestamp: new Date().toISOString(),
+          },
+          ...prev.activities,
+        ].slice(0, 100),
+      }));
+      return { ok: false, message: errMsg };
+    } finally {
+      processingRef.current = false;
+      setIsProcessing(false);
+    }
   }, []);
 
   const clearCompany = useCallback(() => {
@@ -683,6 +878,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         ...state,
         isHydrated,
+        isProcessing,
         hireAgent,
         deleteAgent,
         updateAgentStatus,
