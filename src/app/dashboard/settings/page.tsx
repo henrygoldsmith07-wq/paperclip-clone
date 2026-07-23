@@ -87,8 +87,12 @@ export default function SettingsPage() {
     reader.onload = () => {
       try {
         const data = JSON.parse(String(reader.result));
-        importState(data);
-        toast("State imported successfully", "success");
+        const ok = importState(data);
+        if (ok) {
+          toast("State imported successfully", "success");
+        } else {
+          toast("Invalid company state structure", "warning");
+        }
       } catch {
         toast("Invalid JSON file", "warning");
       }
