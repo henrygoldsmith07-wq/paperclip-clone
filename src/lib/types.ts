@@ -48,11 +48,20 @@ export interface Task {
   goalId?: string;
   createdAt: string;
   updatedAt: string;
+  /** Latest LLM output from the assigned agent */
+  lastOutput?: string;
 }
 
 export interface Activity {
   id: string;
-  type: "heartbeat" | "task_started" | "task_completed" | "budget_alert" | "goal_update" | "hire" | "message";
+  type:
+    | "heartbeat"
+    | "task_started"
+    | "task_completed"
+    | "budget_alert"
+    | "goal_update"
+    | "hire"
+    | "message";
   agentId?: string;
   message: string;
   timestamp: string;
