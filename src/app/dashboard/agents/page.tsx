@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { AgentRole, AgentStatus } from "@/lib/types";
+import { modelsByGroup } from "@/lib/llm";
 
 const ROLES: AgentRole[] = [
   "CEO",
@@ -22,6 +23,8 @@ const ROLES: AgentRole[] = [
 ];
 
 const AVATARS = ["⚡", "🛡️", "📣", "💰", "⚙️", "🎨", "💼", "🎧", "🔬", "✍️", "🚀", "🧠"];
+
+const MODEL_GROUPS = modelsByGroup();
 
 export default function AgentsPage() {
   const { agents, hireAgent, setAllAgentsStatus, isHydrated } = useApp();
@@ -49,7 +52,6 @@ export default function AgentsPage() {
 
   const handleHire = () => {
     if (!name.trim()) return;
-    // reportsTo is resolved inside hireAgent (existing CEO if any)
     hireAgent({
       name: name.trim(),
       role,
@@ -156,7 +158,7 @@ export default function AgentsPage() {
             <div className="w-full max-w-md animate-fade-in rounded-2xl border border-border bg-card p-6 shadow-2xl">
               <h2 className="text-lg font-semibold">Hire a new agent</h2>
               <p className="mt-1 text-sm text-muted">
-                Bring any runtime into your org chart
+                Pick any top or free model — set the matching API key in Settings
               </p>
               <div className="mt-5 space-y-4">
                 <div>
@@ -201,12 +203,16 @@ export default function AgentsPage() {
                     onChange={(e) => setModel(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
                   >
-                    <option value="claude-opus-4">Claude Opus 4</option>
-                    <option value="claude-sonnet-4">Claude Sonnet 4</option>
-                    <option value="gpt-4.1">GPT-4.1</option>
-                    <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                    <option value="local-llama">Local Llama</option>
+                    {MODEL_GROUPS.map(({ group, models }) => (
+                      <optgroup key={group} label={group}>
+                        {models.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                            {m.tier === "free" ? " · free" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
                 <div>
